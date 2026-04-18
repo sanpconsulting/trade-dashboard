@@ -2,9 +2,8 @@ version: '3.8'
 
 services:
   trade-dashboard:
-    # ⚠️ REMPLACEZ 'VOTRE_NOM' PAR VOTRE NOM D'UTILISATEUR GITHUB ⚠️
     build: 
-      context: https://github.com/VOTRE_NOM/trade-dashboard.git#main
+      context: https://github.com/sanpconsulting/trade-dashboard.git#main
     container_name: trade-dashboard
     ports:
       - "3000:3000"

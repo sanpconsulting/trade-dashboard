@@ -11,9 +11,6 @@ import { MarketData, Timeframe } from './types';
 import { Loader2 } from 'lucide-react';
 
 // Import Views
-import { StrategiesView } from './components/views/StrategiesView';
-import { BacktestsView } from './components/views/BacktestsView';
-import { JournalView } from './components/views/JournalView';
 import { SettingsView } from './components/views/SettingsView';
 
 export default function App() {
@@ -22,16 +19,6 @@ export default function App() {
   const [timeframe, setTimeframe] = useState<Timeframe>('15m');
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [capital, setCapital] = useState<number>(10000);
-  
-  const [execStatus, setExecStatus] = useState<'IDLE' | 'EXECUTING' | 'SUCCESS'>('IDLE');
-
-  const handleExecuteTrade = () => {
-    setExecStatus('EXECUTING');
-    setTimeout(() => {
-      setExecStatus('SUCCESS');
-      setTimeout(() => setExecStatus('IDLE'), 3000);
-    }, 1500);
-  };
 
   useEffect(() => {
     // Only fetch market data recursively on Dashboard tab to save resources
@@ -59,9 +46,6 @@ export default function App() {
   }, [asset, timeframe, activeTab]);
 
   const renderContent = () => {
-    if (activeTab === 'Strategies') return <StrategiesView />;
-    if (activeTab === 'Backtests') return <BacktestsView />;
-    if (activeTab === 'Journal') return <JournalView />;
     if (activeTab === 'Settings') return <SettingsView />;
 
     if (!marketData) {
@@ -85,7 +69,7 @@ export default function App() {
               <ChartMock data={marketData} />
             </div>
             <div className="col-span-1 xl:col-span-1">
-              <AiSynthesisCard data={marketData} />
+              <AiSynthesisCard data={marketData} selectedModel={localStorage.getItem('trade_ai_local_model') || undefined} />
             </div>
           </div>
 
@@ -133,21 +117,6 @@ export default function App() {
                     </span>
                   </div>
                 ))}
-              </div>
-              
-              <div className="p-4 border-t border-zinc-800 bg-zinc-950/40">
-                <button 
-                  onClick={handleExecuteTrade}
-                  disabled={execStatus !== 'IDLE'}
-                  className={`w-full font-semibold py-2 rounded-sm text-xs transition-colors flex items-center justify-center ${
-                    execStatus === 'EXECUTING' ? 'bg-zinc-800 text-zinc-400 cursor-wait' :
-                    execStatus === 'SUCCESS' ? 'bg-emerald-600 text-white' :
-                    'bg-blue-600 hover:bg-blue-500 text-white'
-                  }`}
-                >
-                  {execStatus === 'EXECUTING' && <Loader2 className="w-3 h-3 animate-spin mr-2" />}
-                  {execStatus === 'IDLE' ? 'Execute Trade Strategy' : execStatus === 'EXECUTING' ? 'Transmitting Order...' : 'Trade Executed Successfully'}
-                </button>
               </div>
             </div>
           </div>

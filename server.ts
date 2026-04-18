@@ -51,25 +51,90 @@ async function startServer() {
   });
 
   // Local AI (LLaMA) Proxy
+  app.get("/api/models", async (req, res) => {
+    try {
+      let llmUrl = process.env.LLM_API_URL || 'http://host.docker.internal:11434/api/generate';
+      // To get tags from ollama, we change '/api/generate' to '/api/tags'
+      const baseUrl = llmUrl.replace('/api/generate', '');
+      
+      let response;
+      let usedUrl = '';
+
+      const fallbackUrls = [
+        `${baseUrl}/api/tags`,
+        'http://172.17.0.1:11434/api/tags',
+        'http://localhost:11434/api/tags'
+      ];
+
+      for (const url of fallbackUrls) {
+        try {
+          usedUrl = url;
+          response = await fetch(url, { signal: AbortSignal.timeout(2000) });
+          if (response.ok) break;
+        } catch (e: any) {
+          console.warn(`[Network Retry] Failed to get models at ${url}:`, e.message);
+          response = null;
+        }
+      }
+
+      if (!response || !response.ok) {
+        throw new Error(`Impossible de lister les modèles Ollama.`);
+      }
+
+      const data = await response.json();
+      const models = data.models?.map((m: any) => m.name) || [process.env.LLM_MODEL_NAME || 'llama3'];
+      res.json({ models, __debug: { source_url: usedUrl } });
+    } catch (error: any) {
+      console.error('LLM Proxy Error (Models):', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/ai", async (req, res) => {
     try {
-      const { prompt } = req.body;
-      // Default to host.docker.internal for local Ollama outside container
-      const llmUrl = process.env.LLM_API_URL || 'http://host.docker.internal:11434/api/generate';
-      const model = process.env.LLM_MODEL_NAME || 'llama3';
+      const { prompt, selectedModel } = req.body;
+      const model = selectedModel || process.env.LLM_MODEL_NAME || 'llama3';
+      
+      // Default URL if passed in ENV
+      let llmUrl = process.env.LLM_API_URL || 'http://host.docker.internal:11434/api/generate';
+      let response;
+      let usedUrl = llmUrl;
 
-      const response = await fetch(llmUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: model,
-          prompt: prompt,
-          stream: false // Request full response directly, avoid SSE parsing for simplicity in UI
-        })
-      });
+      // Robust fallback array to try multiple common Ollama network topologies
+      // 1. host.docker.internal (Docker Desktop on Mac/Windows)
+      // 2. 172.17.0.1 (Default Docker bridge gateway on Linux)
+      // 3. localhost (If running directly via `npm run dev` outside of docker)
+      const fallbackUrls = [
+        llmUrl,
+        'http://172.17.0.1:11434/api/generate',
+        'http://localhost:11434/api/generate'
+      ];
 
-      if (!response.ok) {
-        throw new Error(`LLM API returned ${response.status}: ${await response.text()}`);
+      for (const url of fallbackUrls) {
+        try {
+          usedUrl = url;
+          response = await fetch(url, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               model: model,
+               prompt: prompt,
+               stream: false 
+             }),
+             signal: AbortSignal.timeout(3000) // 3 seconds timeout per connection attempt
+          });
+          
+          if (response.ok) {
+             break; // Successfully connected
+          }
+        } catch (e: any) {
+          console.warn(`[Network Retry] Failed to connect to Ollama at ${url}:`, e.message);
+          response = null;
+        }
+      }
+
+      if (!response || !response.ok) {
+        throw new Error(`Impossible de contacter Ollama sur les adresses réseaux. Veuillez vérifier que Ollama est démarré.`);
       }
 
       const data = await response.json();
@@ -77,7 +142,7 @@ async function startServer() {
       // Robust payload parsing for Ollama (/api/generate) vs OpenAI compat (/v1/completions)
       const text = data.response || data.choices?.[0]?.message?.content || data.choices?.[0]?.text || "No response received from model.";
       
-      res.json({ text });
+      res.json({ text, __debug: { source_url: usedUrl } });
     } catch (error: any) {
       console.error('LLM Proxy Error:', error);
       // Extraire la vraie cause (ex: EAI_AGAIN, ECONNREFUSED) pour le front-end

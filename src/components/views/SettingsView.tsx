@@ -1,7 +1,39 @@
-import React from 'react';
-import { Save, Key, Shield, Bell, HardDrive } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Save, Key, Shield, Bell, HardDrive, RefreshCw } from 'lucide-react';
 
 export function SettingsView() {
+  const [models, setModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>(localStorage.getItem('trade_ai_local_model') || '');
+  const [loadingModels, setLoadingModels] = useState(false);
+
+  useEffect(() => {
+    fetchModels();
+  }, []);
+
+  const fetchModels = async () => {
+    setLoadingModels(true);
+    try {
+      const res = await fetch('/api/models');
+      if (res.ok) {
+        const data = await res.json();
+        setModels(data.models || []);
+        if (data.models && data.models.length > 0 && !selectedModel) {
+          setSelectedModel(data.models[0]);
+          localStorage.setItem('trade_ai_local_model', data.models[0]);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch models', e);
+    }
+    setLoadingModels(false);
+  };
+
+  const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const model = e.target.value;
+    setSelectedModel(model);
+    localStorage.setItem('trade_ai_local_model', model);
+  };
+
   return (
     <div className="p-6 max-w-[800px] mx-auto w-full h-full overflow-y-auto">
       <div className="flex justify-between items-center mb-6">
@@ -13,18 +45,26 @@ export function SettingsView() {
 
       <div className="space-y-6">
         <section className="bg-zinc-900 border border-zinc-800 rounded-sm overflow-hidden">
-          <div className="px-4 py-3 bg-zinc-950/50 border-b border-zinc-800 flex items-center text-[11px] uppercase font-semibold text-zinc-500">
-            <HardDrive className="w-3 h-3 mr-2" /> Local LLM Integration (Docker)
+          <div className="px-4 py-3 bg-zinc-950/50 border-b border-zinc-800 flex items-center justify-between text-[11px] uppercase font-semibold text-zinc-500">
+            <div className="flex items-center">
+              <HardDrive className="w-3 h-3 mr-2" /> Local LLM Integration (Ollama)
+            </div>
+            <button onClick={fetchModels} disabled={loadingModels} className="hover:text-zinc-300">
+              <RefreshCw className={`w-3 h-3 ${loadingModels ? 'animate-spin' : ''}`} />
+            </button>
           </div>
           <div className="p-4 space-y-4">
             <div>
-              <label className="block text-[10px] uppercase text-zinc-500 mb-1.5 font-semibold">LLaMA Node URL</label>
-              <input type="text" readOnly defaultValue="http://llama:11434/api/generate" className="w-full bg-zinc-950/50 border border-zinc-800/80 rounded-sm px-3 py-2 text-xs font-mono text-zinc-500 focus:outline-none cursor-not-allowed" />
-              <div className="text-[9px] text-zinc-600 mt-1">Configured in docker-compose.yml via LLM_API_URL.</div>
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase text-zinc-500 mb-1.5 font-semibold">Model ID</label>
-              <input type="text" readOnly defaultValue="llama3" className="w-full bg-zinc-950/50 border border-zinc-800/80 rounded-sm px-3 py-2 text-xs font-mono text-zinc-500 focus:outline-none cursor-not-allowed" />
+              <label className="block text-[10px] uppercase text-zinc-500 mb-1.5 font-semibold">Available Models</label>
+              <select 
+                value={selectedModel}
+                onChange={handleModelChange}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-2 text-xs font-mono text-zinc-300 focus:outline-none focus:border-blue-500"
+              >
+                {models.length === 0 && <option value={selectedModel || 'llama3'}>{selectedModel || 'llama3'} (Loading...)</option>}
+                {models.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <div className="text-[9px] text-zinc-600 mt-1">Select from models currently installed on your local Ollama instance.</div>
             </div>
           </div>
         </section>

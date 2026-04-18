@@ -13,9 +13,6 @@ interface SidebarProps {
 export function Sidebar({ className, capital, onChangeCapital, activeTab, onTabChange }: SidebarProps) {
   const items = [
     { label: 'Dashboard', icon: LayoutDashboard },
-    { label: 'Strategies', icon: AlignEndHorizontal },
-    { label: 'Backtests', icon: GitCompare },
-    { label: 'Journal', icon: History },
     { label: 'Settings', icon: Settings },
   ];
 
