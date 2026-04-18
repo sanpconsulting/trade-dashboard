@@ -10,10 +10,21 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
 }
 
+import { useLanguage } from '../hooks/useLanguage';
+
+interface SidebarProps {
+  className?: string;
+  capital: number;
+  onChangeCapital: (val: number) => void;
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}
+
 export function Sidebar({ className, capital, onChangeCapital, activeTab, onTabChange }: SidebarProps) {
+  const { t } = useLanguage();
   const items = [
-    { label: 'Dashboard', icon: LayoutDashboard },
-    { label: 'Settings', icon: Settings },
+    { label: t('dashboard'), id: 'Dashboard', icon: LayoutDashboard },
+    { label: t('settings'), id: 'Settings', icon: Settings },
   ];
 
   return (
@@ -26,11 +37,11 @@ export function Sidebar({ className, capital, onChangeCapital, activeTab, onTabC
       <nav className="flex-1 px-3 space-y-1 mt-4">
         {items.map((item) => (
           <button
-            key={item.label}
-            onClick={() => onTabChange(item.label)}
+            key={item.id}
+            onClick={() => onTabChange(item.id)}
             className={cn(
               "w-full flex items-center space-x-3 px-3 py-2 rounded-sm text-[11px] uppercase tracking-wider font-semibold transition-colors",
-              activeTab === item.label 
+              activeTab === item.id 
                 ? "bg-zinc-800 text-zinc-100" 
                 : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900"
             )}
@@ -42,7 +53,7 @@ export function Sidebar({ className, capital, onChangeCapital, activeTab, onTabC
       </nav>
 
       <div className="p-4 border-t border-zinc-800">
-        <label className="block text-[10px] uppercase text-zinc-500 mb-2 font-semibold">Available Capital (USD)</label>
+        <label className="block text-[10px] uppercase text-zinc-500 mb-2 font-semibold">{t('dashboard') === 'Dashboard' ? 'Available Capital' : 'Capital Disponible'} (USD)</label>
         <div className="relative mb-4">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-sm">$</span>
           <input 

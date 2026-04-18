@@ -4,6 +4,8 @@ import { Timeframe } from '../types';
 import { cn } from '../lib/utils';
 import { getMarketStatus } from '../lib/marketHours';
 
+import { useLanguage } from '../hooks/useLanguage';
+
 interface TopBarProps {
   selectedAsset: string;
   onAssetChange: (asset: string) => void;
@@ -49,6 +51,7 @@ const ASSET_GROUPS = {
 const TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d', '1w'];
 
 export function TopBar({ selectedAsset, onAssetChange, selectedTimeframe, onTimeframeChange }: TopBarProps) {
+  const { language, setLanguage } = useLanguage();
   const [status, setStatus] = useState(() => getMarketStatus(selectedAsset));
 
   useEffect(() => {
@@ -58,6 +61,10 @@ export function TopBar({ selectedAsset, onAssetChange, selectedTimeframe, onTime
     }, 60000);
     return () => clearInterval(timer);
   }, [selectedAsset]);
+
+  const toggleLang = () => {
+    setLanguage(language === 'en' ? 'fr' : 'en');
+  };
 
   return (
     <header className="h-[52px] border-b border-zinc-800 bg-[#09090b] flex items-center px-4 justify-between sticky top-0 z-10 shrink-0">
@@ -103,8 +110,17 @@ export function TopBar({ selectedAsset, onAssetChange, selectedTimeframe, onTime
       </div>
       
       <div className="flex items-center space-x-4">
+        <button 
+          onClick={toggleLang}
+          className="flex items-center bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition-colors rounded-sm px-2 py-1 text-[10px] font-mono uppercase font-bold text-zinc-400 group"
+        >
+          <span className={cn("px-1", language === 'fr' ? "text-blue-500" : "group-hover:text-zinc-200")}>FR</span>
+          <span className="text-zinc-700 mx-0.5">/</span>
+          <span className={cn("px-1", language === 'en' ? "text-blue-500" : "group-hover:text-zinc-200")}>EN</span>
+        </button>
+
         <div className="text-[10px] font-mono uppercase tracking-wider flex items-center bg-zinc-950 px-3 py-1.5 rounded-sm border border-zinc-800/80">
-          <span className="text-zinc-500 mr-2">Status:</span>
+          <span className="text-zinc-500 mr-2">{language === 'fr' ? 'État :' : 'Status:'}</span>
           <span className={cn("inline-flex items-center font-medium tracking-widest", status.isOpen ? "text-emerald-500" : "text-amber-500")}>
             <span className={cn("w-1.5 h-1.5 rounded-full mr-2", status.isOpen ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" : "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]")} />
             {status.message}

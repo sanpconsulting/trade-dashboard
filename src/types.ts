@@ -7,16 +7,24 @@ export interface ChartPoint {
   open?: number;
   high?: number;
   low?: number;
+  close?: number; // Added close for clarity in candlesticks
   volume?: number;
   fullDate?: string;
 }
 
-export type ChartType = 'AREA' | 'LINE';
+export type ChartType = 'AREA' | 'LINE' | 'CANDLE' | 'BAR' | 'SCATTER';
 
 export interface NewsItem {
   title: string;
   link: string;
   pubDate: string;
+}
+
+export interface IndicatorStatus {
+  name: string;
+  value: string | number;
+  signal: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  description: string;
 }
 
 export interface MarketData {
@@ -33,6 +41,8 @@ export interface MarketData {
   confidenceScore: number; // 0-100
   recommendedAction: ActionDecision;
   recommendedStrategy: string;
+  
+  detailedIndicators: IndicatorStatus[];
   
   tradePlan: {
     entry: number | null;

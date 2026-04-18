@@ -9,7 +9,17 @@ interface ScoreGaugeProps {
   type?: 'technical' | 'fundamental' | 'sentiment' | 'confidence';
 }
 
+import { useLanguage } from '../hooks/useLanguage';
+
+interface ScoreGaugeProps {
+  score: number;
+  label: string;
+  className?: string;
+  type?: 'technical' | 'fundamental' | 'sentiment' | 'confidence';
+}
+
 export function ScoreGauge({ score, label, className, type = 'technical' }: ScoreGaugeProps) {
+  const { language } = useLanguage();
   let colorClass = "text-[#888899]";
   let bgClass = "bg-[#666677]";
   let shadowClass = "shadow-[0_0_10px_var(--color-neutral)]";
@@ -46,9 +56,9 @@ export function ScoreGauge({ score, label, className, type = 'technical' }: Scor
         </div>
         
         <div className="flex justify-between mt-1 text-[9px] uppercase tracking-[1px] text-[#888899] font-mono">
-          <span>Bearish</span>
-          <span>Neutral</span>
-          <span>Bullish</span>
+          <span>{language === 'fr' ? 'Baissier' : 'Bearish'}</span>
+          <span>{language === 'fr' ? 'Neutre' : 'Neutral'}</span>
+          <span>{language === 'fr' ? 'Haussier' : 'Bullish'}</span>
         </div>
       </div>
     </div>

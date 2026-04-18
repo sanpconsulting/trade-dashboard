@@ -9,11 +9,13 @@ import { NewsFeedCard } from './components/NewsFeedCard';
 import { fetchRealMarketData } from './services/marketApi';
 import { MarketData, Timeframe } from './types';
 import { Loader2 } from 'lucide-react';
+import { useLanguage } from './hooks/useLanguage';
 
 // Import Views
 import { SettingsView } from './components/views/SettingsView';
 
 export default function App() {
+  const { t, language } = useLanguage();
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [asset, setAsset] = useState('BTC-USD');
   const [timeframe, setTimeframe] = useState<Timeframe>('15m');
@@ -38,7 +40,9 @@ export default function App() {
     }
     
     getMarket();
-    const intervalId = setInterval(getMarket, 60000);
+    // Default 1 minute polling (Market data & Financial Intelligence Feed)
+    const intervalId = setInterval(getMarket, 60000); 
+    
     return () => {
       isMounted = false;
       clearInterval(intervalId);
@@ -53,7 +57,7 @@ export default function App() {
         <div className="flex h-full bg-[#09090b] text-[#fafafa] items-center justify-center">
           <div className="flex flex-col items-center space-y-3">
             <Loader2 className="h-6 w-6 text-blue-500 animate-spin" />
-            <p className="text-zinc-500 font-mono tracking-widest uppercase text-[10px]">Syncing Data // {asset}...</p>
+            <p className="text-zinc-500 font-mono tracking-widest uppercase text-[10px]">{t('syncing')} // {asset}...</p>
           </div>
         </div>
       );
@@ -71,25 +75,23 @@ export default function App() {
             <div className="col-span-1 xl:col-span-1">
               <AiSynthesisCard 
                 data={marketData} 
-                selectedModel={localStorage.getItem('trade_ai_local_model') || undefined} 
-                ollamaUrl={localStorage.getItem('trade_ai_ollama_url') || undefined}
               />
             </div>
           </div>
 
           {/* Middle row: Dashboard Scores */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <ScoreGauge score={marketData.technicalScore} label="Technical Structure" />
-            <ScoreGauge score={marketData.fundamentalScore} label="Macro Backdrop" type="fundamental" />
-            <ScoreGauge score={marketData.sentimentScore} label="Volume Momentum" type="sentiment" />
+            <ScoreGauge score={marketData.technicalScore} label={t('technical')} />
+            <ScoreGauge score={marketData.fundamentalScore} label={t('fundamental')} type="fundamental" />
+            <ScoreGauge score={marketData.sentimentScore} label={t('sentiment')} type="sentiment" />
             
             <div className="bg-zinc-900 border border-zinc-800 rounded-sm flex flex-col justify-center text-center overflow-hidden">
-              <div className="px-4 py-2 bg-zinc-950/50 border-b border-zinc-800 text-[10px] uppercase font-semibold text-zinc-500 w-full">Aggregated Edge</div>
+              <div className="px-4 py-2 bg-zinc-950/50 border-b border-zinc-800 text-[10px] uppercase font-semibold text-zinc-500 w-full">{t('edge')}</div>
               <div className="p-4 flex-1 flex flex-col items-center justify-center">
                 <div className="text-3xl font-mono font-bold text-zinc-100">
                   {marketData.confidenceScore}<span className="text-lg text-zinc-500">%</span>
                 </div>
-                <div className="text-[10px] uppercase text-zinc-500 mt-1">Confluence</div>
+                <div className="text-[10px] uppercase text-zinc-500 mt-1">{t('confidence')}</div>
               </div>
             </div>
           </div>
@@ -103,13 +105,13 @@ export default function App() {
             {/* Alert Module mockup */}
             <div className="col-span-1 bg-zinc-900 border border-zinc-800 rounded-sm flex flex-col overflow-hidden">
               <div className="px-4 py-2.5 bg-zinc-950/50 border-b border-zinc-800 text-[10px] uppercase font-semibold text-zinc-500">
-                Risk Parameters & Alerts
+                {t('risk')} & {t('alerts')}
               </div>
               <div className="p-4 space-y-2 flex-1">
                 {[
-                  { title: 'Invalidation Target', val: marketData.recommendedAction === 'BUY' ? marketData.tradePlan.stopLoss : 'N/A', active: true },
-                  { title: 'ATR Volatility', val: marketData.volatility, active: true },
-                  { title: 'Red News Impact', val: '2h 15m', active: false },
+                  { title: language === 'fr' ? 'Cible d\'Invalidation' : 'Invalidation Target', val: marketData.recommendedAction === 'BUY' ? marketData.tradePlan.stopLoss : 'N/A', active: true },
+                  { title: language === 'fr' ? 'Volatilité ATR' : 'ATR Volatility', val: marketData.volatility, active: true },
+                  { title: language === 'fr' ? 'Impact News Rouges' : 'Red News Impact', val: '2h 15m', active: false },
                 ].map((alert, i) => (
                   <div key={i} className="flex items-center justify-between p-2 rounded-sm border border-zinc-800/80 bg-zinc-950/30">
                     <div className="flex items-center">
