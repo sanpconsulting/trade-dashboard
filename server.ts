@@ -53,23 +53,27 @@ async function startServer() {
   // Local AI (LLaMA) Proxy
   app.get("/api/models", async (req, res) => {
     try {
-      let llmUrl = process.env.LLM_API_URL || 'http://host.docker.internal:11434/api/generate';
-      // To get tags from ollama, we change '/api/generate' to '/api/tags'
-      const baseUrl = llmUrl.replace('/api/generate', '');
+      const customUrl = req.query.ollamaUrl as string;
+      let llmUrl = customUrl || process.env.LLM_API_URL || 'http://host.docker.internal:11434/api/generate';
+      // Normalize base URL
+      const baseUrl = llmUrl.replace('/api/generate', '').replace('/api/tags', '');
       
       let response;
       let usedUrl = '';
 
-      const fallbackUrls = [
-        `${baseUrl}/api/tags`,
-        'http://172.17.0.1:11434/api/tags',
-        'http://localhost:11434/api/tags'
-      ];
+      const fallbackUrls = customUrl 
+        ? [`${baseUrl}/api/tags`]
+        : [
+          `${baseUrl}/api/tags`,
+          'http://172.17.0.1:11434/api/tags',
+          'http://172.18.0.1:11434/api/tags',
+          'http://localhost:11434/api/tags'
+        ];
 
       for (const url of fallbackUrls) {
         try {
           usedUrl = url;
-          response = await fetch(url, { signal: AbortSignal.timeout(2000) });
+          response = await fetch(url, { signal: AbortSignal.timeout(3000) });
           if (response.ok) break;
         } catch (e: any) {
           console.warn(`[Network Retry] Failed to get models at ${url}:`, e.message);
@@ -78,7 +82,7 @@ async function startServer() {
       }
 
       if (!response || !response.ok) {
-        throw new Error(`Impossible de lister les modèles Ollama.`);
+        throw new Error(`Impossible de lister les modèles Ollama sur ${usedUrl}.`);
       }
 
       const data = await response.json();
@@ -92,26 +96,29 @@ async function startServer() {
 
   app.post("/api/ai", async (req, res) => {
     try {
-      const { prompt, selectedModel } = req.body;
+      const { prompt, selectedModel, ollamaUrl: customUrl } = req.body;
       const model = selectedModel || process.env.LLM_MODEL_NAME || 'llama3';
       
-      // Default URL if passed in ENV
-      let llmUrl = process.env.LLM_API_URL || 'http://host.docker.internal:11434/api/generate';
-      let response;
-      let usedUrl = llmUrl;
+      // Default URL if passed in ENV or via UI
+      let llmUrl = customUrl || process.env.LLM_API_URL || 'http://host.docker.internal:11434/api/generate';
+      const baseUrl = llmUrl.replace('/api/generate', '').replace('/api/tags', '');
+      const generationUrl = `${baseUrl}/api/generate`;
 
-      // Robust fallback array to try multiple common Ollama network topologies
-      // 1. host.docker.internal (Docker Desktop on Mac/Windows)
-      // 2. 172.17.0.1 (Default Docker bridge gateway on Linux)
-      // 3. localhost (If running directly via `npm run dev` outside of docker)
-      const fallbackUrls = [
-        llmUrl,
-        'http://172.17.0.1:11434/api/generate',
-        'http://localhost:11434/api/generate'
-      ];
+      let response;
+      let usedUrl = generationUrl;
+
+      const fallbackUrls = customUrl 
+        ? [generationUrl]
+        : [
+            generationUrl,
+            'http://172.17.0.1:11434/api/generate',
+            'http://172.18.0.1:11434/api/generate',
+            'http://localhost:11434/api/generate'
+          ];
 
       for (const url of fallbackUrls) {
         try {
+          console.log(`[LLM Proxy] Testing connection to ${url} with model ${model}...`);
           usedUrl = url;
           response = await fetch(url, {
              method: 'POST',
@@ -121,20 +128,38 @@ async function startServer() {
                prompt: prompt,
                stream: false 
              }),
-             signal: AbortSignal.timeout(3000) // 3 seconds timeout per connection attempt
+             // 180s timeout - models can take time to load into VRAM or generate long responses
+             signal: AbortSignal.timeout(180000) 
           });
           
           if (response.ok) {
-             break; // Successfully connected
+             console.log(`[LLM Proxy] Success using ${url}`);
+             break; 
+          } else {
+             const errorTxt = await response.text();
+             console.warn(`[Network Retry] Ollama error on ${url}: ${response.status} ${errorTxt}`);
           }
         } catch (e: any) {
-          console.warn(`[Network Retry] Failed to connect to Ollama at ${url}:`, e.message);
+          const isTimeout = e.name === 'TimeoutError' || e.name === 'AbortError';
+          console.warn(`[Network Retry] Failed to connect to Ollama at ${url}:`, isTimeout ? 'TIMEOUT (180s)' : e.message);
           response = null;
         }
       }
 
-      if (!response || !response.ok) {
-        throw new Error(`Impossible de contacter Ollama sur les adresses réseaux. Veuillez vérifier que Ollama est démarré.`);
+      if (!response) {
+        throw new Error(`Impossible de contacter Ollama sur les adresses réseaux. Veuillez vérifier que le service est démarré.`);
+      }
+
+      if (!response.ok) {
+        const errorTxt = await response.text();
+        let detail;
+        try {
+          const jsonErr = JSON.parse(errorTxt);
+          detail = jsonErr.error || errorTxt;
+        } catch(e) {
+          detail = errorTxt;
+        }
+        throw new Error(`Ollama (HTTP ${response.status}) : ${detail}`);
       }
 
       const data = await response.json();

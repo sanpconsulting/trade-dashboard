@@ -13,6 +13,7 @@ export async function generateTradeSynthesis(data: {
   strategy: string;
   action: 'BUY' | 'SELL' | 'WAIT' | 'REDUCE';
   selectedModel?: string;
+  ollamaUrl?: string;
 }) {
   const prompt = `
 Vous êtes "QuantGPT", une IA analytique spécialisée en finance quantitative, analyse de sentiment institutionnel et gestion du risque. Actuellement chargée d'assister un trader professionnel via le système TradeAI.
@@ -39,7 +40,7 @@ RÈGLES :
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ prompt, selectedModel: data.selectedModel })
+      body: JSON.stringify({ prompt, selectedModel: data.selectedModel, ollamaUrl: data.ollamaUrl })
     });
 
     if (!response.ok) {

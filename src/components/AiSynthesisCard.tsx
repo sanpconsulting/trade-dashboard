@@ -6,9 +6,10 @@ import { Sparkles, Loader2, RefreshCw } from 'lucide-react';
 interface AiSynthesisCardProps {
   data: MarketData;
   selectedModel?: string;
+  ollamaUrl?: string;
 }
 
-export function AiSynthesisCard({ data, selectedModel }: AiSynthesisCardProps) {
+export function AiSynthesisCard({ data, selectedModel, ollamaUrl }: AiSynthesisCardProps) {
   const [synthesis, setSynthesis] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
@@ -23,7 +24,8 @@ export function AiSynthesisCard({ data, selectedModel }: AiSynthesisCardProps) {
       sentimentScore: data.sentimentScore,
       strategy: data.recommendedStrategy,
       action: data.recommendedAction,
-      selectedModel
+      selectedModel,
+      ollamaUrl
     });
     
     setSynthesis(result);
@@ -44,7 +46,8 @@ export function AiSynthesisCard({ data, selectedModel }: AiSynthesisCardProps) {
         sentimentScore: data.sentimentScore,
         strategy: data.recommendedStrategy,
         action: data.recommendedAction,
-        selectedModel
+        selectedModel,
+        ollamaUrl
       });
       
       if (isMounted) {

@@ -69,7 +69,11 @@ export default function App() {
               <ChartMock data={marketData} />
             </div>
             <div className="col-span-1 xl:col-span-1">
-              <AiSynthesisCard data={marketData} selectedModel={localStorage.getItem('trade_ai_local_model') || undefined} />
+              <AiSynthesisCard 
+                data={marketData} 
+                selectedModel={localStorage.getItem('trade_ai_local_model') || undefined} 
+                ollamaUrl={localStorage.getItem('trade_ai_ollama_url') || undefined}
+              />
             </div>
           </div>
 
