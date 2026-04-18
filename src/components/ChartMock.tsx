@@ -157,7 +157,7 @@ export function ChartMock({ data }: ChartMockProps) {
       
       <div className="px-4 py-3 flex justify-between items-start">
         <div>
-          <h2 className="text-2xl font-mono font-bold text-zinc-100">{data.asset.replace('-USD', '').replace('=X', '').replace('=F', '')}</h2>
+          <h2 className="text-2xl font-mono font-bold text-zinc-100">{data.asset.replace('_', '/').replace('-USD', '').replace('=X', '').replace('=F', '')}</h2>
         </div>
         <div className="text-right">
           <div className="text-2xl font-mono font-bold text-zinc-100">

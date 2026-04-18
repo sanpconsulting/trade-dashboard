@@ -50,34 +50,38 @@ export function AiSynthesisCard({ data }: AiSynthesisCardProps) {
         </button>
       </div>
       
-      <div className="flex-1 p-4 relative flex flex-col overflow-y-auto">
+      <div className="flex-1 p-4 relative flex flex-col overflow-y-auto custom-scrollbar bg-zinc-900/40">
         {loading ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/80 z-20 backdrop-blur-sm">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/95 z-30 backdrop-blur-md">
             <Loader2 className="h-5 w-5 text-emerald-500 animate-spin mb-2" />
             <span className="text-[10px] uppercase text-zinc-500 tracking-widest">{language === 'fr' ? 'Scan des Indicateurs...' : 'Scanning Indicators...'}</span>
           </div>
         ) : null}
         
         {showDetails ? (
-          <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-            <h4 className="text-[10px] uppercase font-bold text-zinc-500 mb-2">{language === 'fr' ? 'Scan Technique Approfondi (10/10)' : 'Technical Deep Scan (10/10)'}</h4>
-            {data.detailedIndicators.map((ind, idx) => (
-              <div key={idx} className="flex items-center justify-between border-b border-zinc-800/50 pb-1 text-[11px]">
-                <div className="flex flex-col">
-                  <span className="text-zinc-400 font-medium">{ind.name}</span>
-                  <span className="text-[9px] text-zinc-600 italic leading-none">{ind.description}</span>
-                </div>
-                <div className="text-right">
-                  <div className={`font-mono font-bold ${
-                    ind.signal === 'BULLISH' ? 'text-emerald-500' : 
-                    ind.signal === 'BEARISH' ? 'text-rose-500' : 'text-zinc-500'
-                  }`}>
-                    {translateSignal(ind.signal)}
+          <div className="animate-in fade-in slide-in-from-top-2 duration-300 pb-4">
+            <div className="sticky top-0 bg-[#18181b] z-20 py-2 border-b border-zinc-800 -mx-4 px-4 mb-3">
+              <h4 className="text-[10px] uppercase font-bold text-zinc-500 tracking-widest">{language === 'fr' ? 'Scan Technique Approfondi (10/10)' : 'Technical Deep Scan (10/10)'}</h4>
+            </div>
+            <div className="space-y-2">
+              {data.detailedIndicators.map((ind, idx) => (
+                <div key={idx} className="flex items-center justify-between border-b border-zinc-800/50 pb-1 text-[11px]">
+                  <div className="flex flex-col">
+                    <span className="text-zinc-400 font-medium">{ind.name}</span>
+                    <span className="text-[9px] text-zinc-600 italic leading-none">{ind.description}</span>
                   </div>
-                  <div className="text-[9px] text-zinc-500">{ind.value}</div>
+                  <div className="text-right">
+                    <div className={`font-mono font-bold ${
+                      ind.signal === 'BULLISH' ? 'text-emerald-500' : 
+                      ind.signal === 'BEARISH' ? 'text-rose-500' : 'text-zinc-500'
+                    }`}>
+                      {translateSignal(ind.signal)}
+                    </div>
+                    <div className="text-[9px] text-zinc-500">{ind.value}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         ) : (
           <>

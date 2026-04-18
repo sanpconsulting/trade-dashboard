@@ -27,6 +27,20 @@ export interface IndicatorStatus {
   description: string;
 }
 
+export interface Order {
+  id: string;
+  symbol: string;
+  type: 'BUY_LIMIT' | 'SELL_LIMIT' | 'BUY_MARKET' | 'SELL_MARKET';
+  volume: number;
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number;
+  expiration: string;
+  expirationDate: string;
+  status: 'PENDING' | 'FILLED' | 'CANCELLED' | 'EXPIRED';
+  timestamp: number;
+}
+
 export interface MarketData {
   asset: string;
   currentPrice: number;

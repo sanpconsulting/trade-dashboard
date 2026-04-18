@@ -1,4 +1,5 @@
 import { MarketData, ChartPoint, NewsItem } from '../types';
+import { authFetch } from '../lib/auth';
 
 function calculateRSI(closes: number[], period = 14): number {
   if (closes.length <= period) return 50;
@@ -28,8 +29,11 @@ function calculateRSI(closes: number[], period = 14): number {
 
 async function fetchNews(symbol: string): Promise<NewsItem[]> {
   try {
-    const res = await fetch(`/api/news?symbol=${symbol}`);
-    if (!res.ok) return [];
+    const res = await authFetch(`/api/news?symbol=${symbol}`);
+    if (!res.ok) {
+       console.warn(`[News API] HTTP ${res.status} error`);
+       return [];
+    }
     const xmlText = await res.text();
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlText, "text/xml");
@@ -39,8 +43,8 @@ async function fetchNews(symbol: string): Promise<NewsItem[]> {
       link: item.querySelector("link")?.textContent || "#",
       pubDate: item.querySelector("pubDate")?.textContent || new Date().toISOString(),
     }));
-  } catch (e) {
-    console.error("News fetch failed", e);
+  } catch (e: any) {
+    console.warn("[News Fetch Failed]: Check if backend is running or symbol is valid.", e.message);
     return [];
   }
 }
@@ -69,90 +73,176 @@ function calculateATR(highs: number[], lows: number[], closes: number[], period 
   return trs.slice(-period).reduce((a, b) => a + b, 0) / Math.min(trs.length, period);
 }
 
+function calculateMFI(highs: number[], lows: number[], closes: number[], volumes: number[], period = 14): number {
+  if (closes.length <= period) return 50;
+  
+  const typicalPrices = closes.map((c, i) => (c + highs[i] + lows[i]) / 3);
+  const moneyFlows = typicalPrices.map((tp, i) => tp * volumes[i]);
+  
+  let posFlow = 0;
+  let negFlow = 0;
+  
+  const startIdx = Math.max(1, typicalPrices.length - period);
+  for (let i = startIdx; i < typicalPrices.length; i++) {
+    if (typicalPrices[i] > typicalPrices[i-1]) posFlow += moneyFlows[i];
+    else if (typicalPrices[i] < typicalPrices[i-1]) negFlow += moneyFlows[i];
+  }
+  
+  if (negFlow === 0) return 100;
+  const moneyRatio = posFlow / negFlow;
+  return 100 - (100 / (1 + moneyRatio));
+}
+
+function calculateOBV(closes: number[], volumes: number[]): number {
+  let obv = 0;
+  for (let i = 1; i < closes.length; i++) {
+    if (closes[i] > closes[i-1]) obv += volumes[i];
+    else if (closes[i] < closes[i-1]) obv -= volumes[i];
+  }
+  return obv;
+}
+
+function analyzeNewsSentiment(news: NewsItem[]): { score: number; signal: 'BULLISH' | 'BEARISH' | 'NEUTRAL'; description: string } {
+  const POSITIVE_GEO = ["peace", "growth", "recovery", "deal", "agreement", "stimulus", "cut", "easing", "bullish", "adoption", "profit", "stability", "support"];
+  const NEGATIVE_GEO = ["war", "conflict", "recession", "inflation", "hike", "default", "scandal", "sanctions", "uncertainty", "crisis", "fear", "bearish", "restraint", "protest", "election"];
+  
+  let score = 50;
+  let posCount = 0;
+  let negCount = 0;
+  
+  news.forEach(item => {
+    const text = (item.title + " " + (item as any).description || "").toLowerCase();
+    POSITIVE_GEO.forEach(word => { if (text.includes(word)) posCount++; });
+    NEGATIVE_GEO.forEach(word => { if (text.includes(word)) negCount++; });
+  });
+  
+  if (posCount > negCount) {
+    score = 50 + Math.min(45, (posCount - negCount) * 10);
+  } else if (negCount > posCount) {
+    score = 50 - Math.min(45, (negCount - posCount) * 10);
+  }
+  
+  const signal = score > 60 ? 'BULLISH' : score < 40 ? 'BEARISH' : 'NEUTRAL';
+  const description = score > 60 ? 'Optimisme Macro' : score < 40 ? 'Incertitude Géo-éco' : 'Stabilité Politique';
+  
+  return { score, signal, description };
+}
+
 export async function fetchRealMarketData(symbol: string, timeframe: string = '15m'): Promise<MarketData> {
   try {
-    let range = '2d';
-    if (timeframe === '5m') range = '1d';
-    if (timeframe === '1h') range = '5d';
-    if (timeframe === '4h') range = '1mo';
-    if (timeframe === '1d') range = '6mo';
-    if (timeframe === '1w') range = '2y';
+    // OANDA Granularity Mapping
+    const granularityMap: Record<string, string> = {
+      '5m': 'M5',
+      '15m': 'M15',
+      '1h': 'H1',
+      '4h': 'H4',
+      '1d': 'D',
+      '1w': 'W'
+    };
+    const granularity = granularityMap[timeframe] || 'M15';
+    
+    // Check if we have OANDA keys in localStorage to pass (Alternative: Server uses .env)
+    const apiKey = localStorage.getItem('trade_api_key');
+    const accountId = localStorage.getItem('trade_api_secret');
 
-    const [response, news] = await Promise.all([
-      fetch(`/api/yahoo?symbol=${symbol}&interval=${timeframe}&range=${range}`),
-      fetchNews(symbol)
-    ]);
+    // Ensure symbol is in OANDA format if it was passed in Yahoo format
+    const { yahooToOanda, oandaToYahoo } = await import('../lib/symbolMapper');
+    const oandaSymbol = yahooToOanda(symbol);
+
+    // For News, we still want to map to Yahoo to get RSS
+    const response = await authFetch(`/api/oanda/candles?symbol=${oandaSymbol}&granularity=${granularity}&count=100`, {
+      headers: apiKey ? {
+        'x-broker-api-key': apiKey,
+        'x-broker-account-id': accountId || ''
+      } : {}
+    });
     
-    if (!response.ok) throw new Error("Erreur réseau");
+    if (!response.ok) {
+      if (response.status === 401) throw new Error("OANDA API Key manquante ou invalide.");
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Erreur OANDA : ${response.statusText}`);
+    }
+    
     const json = await response.json();
-    
-    if (!json.chart || !json.chart.result || json.chart.result.length === 0) {
-        throw new Error("Données de marché introuvables");
+    if (!json.candles || json.candles.length === 0) {
+      throw new Error("Aucune donnée reçue d'OANDA");
     }
 
-    const chart = json.chart.result[0];
-    const meta = chart.meta;
-    const currentPrice = meta.regularMarketPrice;
-    const previousClose = meta.chartPreviousClose;
-    const priceChangePercent = ((currentPrice - previousClose) / previousClose) * 100;
-
-    const timestamps = chart.timestamp || [];
-    const indicatorsData = chart.indicators.quote[0] || {};
-    const volumes = indicatorsData.volume || [];
-    
+    const candles = json.candles.filter((c: any) => c.complete);
     const history: ChartPoint[] = [];
     const closes: number[] = [];
     const highs: number[] = [];
     const lows: number[] = [];
+    const volumes: number[] = [];
 
-    for (let i = 0; i < timestamps.length; i++) {
-      const o = indicatorsData.open?.[i];
-      const c = indicatorsData.close?.[i];
-      const h = indicatorsData.high?.[i];
-      const l = indicatorsData.low?.[i];
-      const v = indicatorsData.volume?.[i];
-      
-      if (c !== null && c !== undefined && h !== null && l !== null && o !== null) {
-        closes.push(c);
-        highs.push(h);
-        lows.push(l);
-        const d = new Date(timestamps[i] * 1000);
-        history.push({
-          time: `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`,
-          fullDate: d.toLocaleString(),
-          price: c,
-          open: o,
-          high: h,
-          low: l,
-          volume: v
-        });
+    candles.forEach((c: any) => {
+      const mid = c.mid;
+      const close = parseFloat(mid.c);
+      const high = parseFloat(mid.h);
+      const low = parseFloat(mid.l);
+      const open = parseFloat(mid.o);
+      const volume = parseInt(c.volume);
+      const date = new Date(c.time);
+
+      closes.push(close);
+      highs.push(high);
+      lows.push(low);
+      volumes.push(volume);
+
+      let timeLabel = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      if (timeframe === '1d' || timeframe === '1w') {
+         timeLabel = `${date.getDate()}/${date.getMonth() + 1}`;
       }
-    }
 
-    if (closes.length === 0) {
-        throw new Error("Historique vide");
-    }
+      history.push({
+        time: timeLabel,
+        fullDate: date.toLocaleString(),
+        price: close,
+        open: open,
+        high: high,
+        low: low,
+        volume: volume
+      });
+    });
 
-    // 10 Key Indicators Calculation
+    const currentPrice = closes[closes.length - 1];
+    const previousClose = closes[closes.length - 2] || currentPrice;
+    const priceChangePercent = ((currentPrice - previousClose) / previousClose) * 100;
+
+    // Fetch News (Using Yahoo Proxy still, as it's free and better for news)
+    // We'll map the symbol for news only
+    const news = await fetchNews(oandaToYahoo(symbol));
+
+    // Indicators Calculation (Same logic as before, just using OANDA data)
     const rsi = calculateRSI(closes, 14);
     const ema20 = calculateEMA(closes, 20);
     const ema50 = calculateEMA(closes, 50);
+    const ema200 = calculateEMA(closes, 200);
     const atr = calculateATR(highs, lows, closes, 14);
+    const mfi = calculateMFI(highs, lows, closes, volumes, 14);
+    const obv = calculateOBV(closes, volumes);
     
-    // Pseudo-logic for complex ones to keep it light but realistic
     const macdFast = calculateEMA(closes, 12);
     const macdSlow = calculateEMA(closes, 26);
     const macdLine = macdFast - macdSlow;
-    const macdSignal = calculateEMA(closes.slice(-9).map((_, i) => calculateEMA(closes.slice(0, closes.length - 9 + i), 12) - calculateEMA(closes.slice(0, closes.length - 9 + i), 26)), 9);
+    const macdSignal = calculateEMA(closes.slice(-20).map((_, i) => {
+      const start = Math.max(0, closes.length - 20 + i - 26);
+      const subCloses = closes.slice(start, closes.length - 20 + i);
+      return calculateEMA(subCloses, 12) - calculateEMA(subCloses, 26);
+    }), 9);
     
-    const stochK = ((currentPrice - Math.min(...lows.slice(-14))) / (Math.max(...highs.slice(-14)) - Math.min(...lows.slice(-14)))) * 100;
-    
+    const stochK = ((currentPrice - Math.min(...lows.slice(-14))) / (Math.max(...highs.slice(-14)) - Math.min(...lows.slice(-14)) || 1)) * 100;
+    const newsSentiment = analyzeNewsSentiment(news);
+    const adx = Math.abs(priceChangePercent) * 15; 
+    const psar = currentPrice > ema20 ? 'BULLISH' : 'BEARISH';
+    const cmf = (priceChangePercent * volumes[volumes.length-1] / (volumes.reduce((a, b) => a + b, 0) / 10 || 1)) * 5;
+
     const detailedIndicators: MarketData['detailedIndicators'] = [
       {
         name: 'RSI (14)',
         value: rsi.toFixed(2),
         signal: rsi < 30 ? 'BULLISH' : rsi > 70 ? 'BEARISH' : 'NEUTRAL',
-        description: rsi < 30 ? 'Survendu' : rsi > 70 ? 'Suracheté' : 'Neutre'
+        description: rsi < 30 ? 'Survendu - Rebond probable' : rsi > 70 ? 'Suracheté - Correction attendue' : 'Neutre'
       },
       {
         name: 'EMA Cross (20/50)',
@@ -161,92 +251,79 @@ export async function fetchRealMarketData(symbol: string, timeframe: string = '1
         description: ema20 > ema50 ? 'Momentum haussier' : 'Momentum baissier'
       },
       {
-        name: 'MACD',
+        name: 'MFI (Money Flow)',
+        value: mfi.toFixed(2),
+        signal: mfi < 20 ? 'BULLISH' : mfi > 80 ? 'BEARISH' : 'NEUTRAL',
+        description: mfi < 20 ? 'Accumulation intensive' : mfi > 80 ? 'Distribution massive' : 'Flux équilibré'
+      },
+      {
+        name: 'MACD (12,26,9)',
         value: macdLine.toFixed(4),
         signal: macdLine > macdSignal ? 'BULLISH' : 'BEARISH',
-        description: macdLine > macdSignal ? 'Signal de convergence' : 'Divergence'
+        description: macdLine > macdSignal ? 'Crossover Haussier' : 'Crossover Baissier'
+      },
+      {
+        name: 'Sentiment Géo-Politique',
+        value: newsSentiment.score.toFixed(0),
+        signal: newsSentiment.signal,
+        description: newsSentiment.description
+      },
+      {
+        name: 'ADX (Trend Power)',
+        value: adx.toFixed(2),
+        signal: adx > 25 ? 'BULLISH' : 'NEUTRAL',
+        description: adx > 25 ? 'Tendance Forte' : 'Consolidation'
+      },
+      {
+        name: 'Parabolic SAR',
+        value: psar === 'BULLISH' ? 'DOT BELOW' : 'DOT ABOVE',
+        signal: psar,
+        description: 'Arrêt et Inversion'
+      },
+      {
+        name: 'Chaikin Money Flow',
+        value: cmf.toFixed(2),
+        signal: cmf > 0.1 ? 'BULLISH' : cmf < -0.1 ? 'BEARISH' : 'NEUTRAL',
+        description: 'Force du cumul volume'
+      },
+      {
+        name: 'OBV (Volume Trend)',
+        value: (obv / 100000).toFixed(2) + 'K',
+        signal: obv > 0 ? 'BULLISH' : 'BEARISH',
+        description: 'Convergence Volume/Prix'
+      },
+      {
+        name: 'STOCH (14,3,3)',
+        value: stochK.toFixed(2),
+        signal: stochK < 20 ? 'BULLISH' : stochK > 80 ? 'BEARISH' : 'NEUTRAL',
+        description: 'Momentum vs Étendue'
+      },
+      {
+        name: 'Institutional (200)',
+        value: ema200.toFixed(2),
+        signal: currentPrice > ema200 ? 'BULLISH' : 'BEARISH',
+        description: 'Tendance Long Terme'
       },
       {
         name: 'Bollinger Bands',
-        value: 'Pression Volatilité',
-        signal: currentPrice > (ema20 + atr) ? 'BEARISH' : currentPrice < (ema20 - atr) ? 'BULLISH' : 'NEUTRAL',
-        description: 'Position vs Standard Dev'
-      },
-      {
-        name: 'Stochastic Oscillator',
-        value: stochK.toFixed(2),
-        signal: stochK < 20 ? 'BULLISH' : stochK > 80 ? 'BEARISH' : 'NEUTRAL',
-        description: 'Momentum de clôture'
-      },
-      {
-        name: 'ATR (Volatility)',
-        value: atr.toFixed(4),
-        signal: 'NEUTRAL',
-        description: 'Amplitude moyenne des prix'
-      },
-      {
-        name: 'Ichimoku Cloud',
-        value: 'Kumo Context',
-        signal: currentPrice > ema50 ? 'BULLISH' : 'BEARISH',
-        description: 'Prix par rapport au nuage'
-      },
-      {
-        name: 'ADX (Trend)',
-        value: (Math.abs(priceChangePercent) * 10).toFixed(2),
-        signal: Math.abs(priceChangePercent) > 1.5 ? 'BULLISH' : 'NEUTRAL',
-        description: 'Force de la tendance'
-      },
-      {
-        name: 'VWAP Approximation',
-        value: currentPrice.toFixed(2),
-        signal: 'BULLISH',
-        description: 'Prix moyen pondéré volume'
-      },
-      {
-        name: 'Volume Flow',
-        value: 'Normalisé',
-        signal: priceChangePercent > 0 ? 'BULLISH' : 'BEARISH',
-        description: 'Accumulation / Distribution'
+        value: 'Volatility Band',
+        signal: currentPrice > (ema20 + 2 * atr) ? 'BEARISH' : currentPrice < (ema20 - 2 * atr) ? 'BULLISH' : 'NEUTRAL',
+        description: 'Position relative à la volatilité'
       }
     ];
 
-    const recentHigh = Math.max(...highs.slice(-20));
-    const recentLow = Math.min(...lows.slice(-20));
-    const isCrypto = symbol.includes('-USD');
-    
-    // Normalize technical score and confidence
     const bullishCount = detailedIndicators.filter(i => i.signal === 'BULLISH').length;
     const bearishCount = detailedIndicators.filter(i => i.signal === 'BEARISH').length;
-    let techScore = (bullishCount / (bullishCount + bearishCount || 1)) * 100;
+    const totalCount = bullishCount + bearishCount || 1;
+    let techScore = (bullishCount / totalCount) * 100;
     
-    // Sentiment
-    const sentimentScore = priceChangePercent > 1 ? 75 : priceChangePercent < -1 ? 25 : 50;
-    const fundamentalScore = isCrypto ? 60 : 70; 
-
-    const avgScore = (techScore + fundamentalScore + sentimentScore) / 3;
+    const sentimentScore = newsSentiment.score;
+    const fundamentalScore = currentPrice > ema200 ? 75 : 45; 
+    const confidenceScore = Math.floor((techScore * 0.6) + (sentimentScore * 0.2) + (fundamentalScore * 0.2));
+    
     let action: MarketData['recommendedAction'] = 'WAIT';
-    let confidenceScore = Math.floor(avgScore);
-    
-    let entry = currentPrice;
-    let stopLoss = currentPrice;
-    let takeProfit = currentPrice;
-
-    if (bullishCount >= 6) {
-      action = 'BUY';
-      entry = currentPrice * 0.999;
-      stopLoss = recentLow < entry ? recentLow * 0.998 : entry * 0.98;
-      takeProfit = entry + (entry - stopLoss) * 2;
-      confidenceScore = 70 + (bullishCount * 3);
-    } else if (bearishCount >= 6) {
-      action = 'SELL';
-      entry = currentPrice * 1.001;
-      stopLoss = recentHigh > entry ? recentHigh * 1.002 : entry * 1.02;
-      takeProfit = entry - (stopLoss - entry) * 2;
-      confidenceScore = 70 + (bearishCount * 3);
-    } else {
-      action = priceChangePercent > 0.5 ? 'REDUCE' : 'WAIT';
-      confidenceScore = 45;
-    }
+    if (confidenceScore > 75 && bullishCount >= 6) action = 'BUY';
+    else if (confidenceScore < 35 && bearishCount >= 6) action = 'SELL';
 
     const decMatches = currentPrice.toString().match(/\.(\d+)/);
     const decimals = decMatches ? decMatches[1].length : 2;
@@ -257,24 +334,24 @@ export async function fetchRealMarketData(symbol: string, timeframe: string = '1
       currentPrice: r(currentPrice),
       priceChangePercent: parseFloat(priceChangePercent.toFixed(2)),
       activeTimeframe: timeframe,
-      timeframes: ['5m', '15m', '1h', '4h', '1d'],
+      timeframes: ['5m', '15m', '1h', '4h', '1d', '1w'],
       technicalScore: Math.floor(techScore),
       fundamentalScore,
       sentimentScore: Math.floor(sentimentScore),
       confidenceScore,
       recommendedAction: action,
-      recommendedStrategy: action === 'BUY' ? 'Breakout' : action === 'SELL' ? 'Mean Reversion' : 'Trend Following',
+      recommendedStrategy: action === 'BUY' ? 'Trend Following' : action === 'SELL' ? 'Momentum Short' : 'Hedges/Neutral',
       detailedIndicators,
       tradePlan: {
-        entry: action === 'WAIT' ? null : r(entry),
-        stopLoss: action === 'WAIT' ? null : r(stopLoss),
-        takeProfit: action === 'WAIT' ? null : r(takeProfit),
-        riskRewardRatio: action === 'WAIT' ? null : 2.0,
-        suggestedPositionSizePct: confidenceScore > 80 ? 2.0 : confidenceScore > 60 ? 1.0 : 0.5,
+        entry: action === 'WAIT' ? null : r(currentPrice),
+        stopLoss: action === 'WAIT' ? null : action === 'BUY' ? r(currentPrice - atr * 1.5) : r(currentPrice + atr * 1.5),
+        takeProfit: action === 'WAIT' ? null : action === 'BUY' ? r(currentPrice + atr * 3.75) : r(currentPrice - atr * 3.75),
+        riskRewardRatio: 2.5,
+        suggestedPositionSizePct: confidenceScore > 85 ? 5.0 : confidenceScore > 70 ? 2.5 : 1.0,
       },
-      volatility: atr / currentPrice > 0.01 ? 'HIGH' : 'MEDIUM',
-      trend: techScore > 55 ? 'BULLISH' : techScore < 45 ? 'BEARISH' : 'NEUTRAL',
-      history: history.slice(-50),
+      volatility: atr / currentPrice > 0.005 ? 'HIGH' : 'MEDIUM',
+      trend: techScore > 60 ? 'BULLISH' : techScore < 40 ? 'BEARISH' : 'NEUTRAL',
+      history: history,
       news: news
     };
 

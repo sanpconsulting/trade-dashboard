@@ -10,11 +10,37 @@
   --color-neutral: #3B82F6;
 }
 
+@layer utilities {
+  .tech-border {
+    @apply border border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 transition-all;
+  }
+  .tech-label {
+    @apply text-[10px] uppercase font-bold tracking-widest text-zinc-500 font-mono;
+  }
+  .tech-value {
+    @apply font-mono font-bold text-zinc-100;
+  }
+}
+
 body {
   @apply bg-[#09090b] text-[#fafafa] font-sans antialiased;
 }
 
 /* Custom scrollbar for webkit */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-zinc-800 rounded-full;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-zinc-700;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

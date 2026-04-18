@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '../lib/utils';
-import { Activity, LayoutDashboard, Settings, GitCompare, History, AlignEndHorizontal } from 'lucide-react';
+import { Activity, LayoutDashboard, Settings, GitCompare, History, AlignEndHorizontal, LogOut } from 'lucide-react';
 
 interface SidebarProps {
   className?: string;
@@ -8,22 +8,18 @@ interface SidebarProps {
   onChangeCapital: (val: number) => void;
   activeTab: string;
   onTabChange: (tab: string) => void;
+  onLogout?: () => void;
+  isSynced?: boolean;
 }
 
 import { useLanguage } from '../hooks/useLanguage';
 
-interface SidebarProps {
-  className?: string;
-  capital: number;
-  onChangeCapital: (val: number) => void;
-  activeTab: string;
-  onTabChange: (tab: string) => void;
-}
-
-export function Sidebar({ className, capital, onChangeCapital, activeTab, onTabChange }: SidebarProps) {
-  const { t } = useLanguage();
+export function Sidebar({ className, capital, onChangeCapital, activeTab, onTabChange, onLogout, isSynced }: SidebarProps) {
+  const { t, language } = useLanguage();
   const items = [
     { label: t('dashboard'), id: 'Dashboard', icon: LayoutDashboard },
+    { label: language === 'fr' ? 'Ordres & Positions' : 'Active Trades', id: 'ActiveTrades', icon: AlignEndHorizontal },
+    { label: language === 'fr' ? 'Historique' : 'History', id: 'History', icon: History },
     { label: t('settings'), id: 'Settings', icon: Settings },
   ];
 
@@ -59,9 +55,19 @@ export function Sidebar({ className, capital, onChangeCapital, activeTab, onTabC
           <input 
             type="number" 
             value={capital}
-            onChange={(e) => onChangeCapital(Number(e.target.value))}
-            className="w-full bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-1.5 pl-6 text-xs font-mono text-zinc-300 focus:outline-none focus:border-blue-500 transition-colors"
+            readOnly={isSynced}
+            onChange={(e) => !isSynced && onChangeCapital(Number(e.target.value))}
+            className={cn(
+              "w-full bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-1.5 pl-6 text-xs font-mono transition-all",
+              isSynced ? "text-emerald-500 border-emerald-500/20" : "text-zinc-300 focus:border-blue-500"
+            )}
           />
+          {isSynced && (
+            <div className="absolute -top-4 right-0 flex items-center gap-1.5 text-[8px] font-bold text-emerald-500 uppercase tracking-tighter">
+              <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
+              OANDA SYNC
+            </div>
+          )}
         </div>
 
         <div className="bg-zinc-950 border border-zinc-800 rounded-sm p-3">
@@ -73,6 +79,14 @@ export function Sidebar({ className, capital, onChangeCapital, activeTab, onTabC
             <div className="bg-emerald-500 h-full w-[25%]" />
           </div>
         </div>
+
+        <button 
+          onClick={onLogout}
+          className="w-full mt-6 flex items-center justify-center space-x-2 px-3 py-2 border border-zinc-800 hover:border-rose-500/50 hover:bg-rose-500/5 text-zinc-500 hover:text-rose-500 rounded-sm text-[11px] uppercase tracking-wider font-bold transition-all group"
+        >
+          <LogOut className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
+          <span>{language === 'fr' ? 'Déconnexion' : 'Log Out'}</span>
+        </button>
       </div>
     </aside>
   );
