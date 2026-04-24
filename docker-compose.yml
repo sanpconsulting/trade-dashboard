@@ -7,9 +7,6 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # host.docker.internal permet de joindre l'Ollama qui tourne de base sur la machine hôte
-      - LLM_API_URL=http://host.docker.internal:11434/api/generate
-      - LLM_MODEL_NAME=llama3
       - NODE_ENV=production
     extra_hosts:
       - "host.docker.internal:host-gateway"

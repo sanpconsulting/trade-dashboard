@@ -2,7 +2,7 @@ import { MarketData } from '../types';
 
 /**
  * Technical Analysis Quant Engine
- * Provides a high-performance local alternative to LLM analysis.
+ * Provides a high-performance local analysis engine.
  * Uses the confluence of 10+ indicators to generate a summary.
  */
 export function generateQuantSynthesis(data: MarketData): string {
@@ -20,26 +20,34 @@ export function generateQuantSynthesis(data: MarketData): string {
     summary += `Structure de marché fortement haussière pour ${asset}. `;
     summary += `Nous observons une confluence de ${bullish.length} indicateurs techniques validant une pression acheteuse. `;
     
-    // Specific mentions
-    const rsi = indicators.find(i => i.name.includes('RSI'));
-    if (rsi && rsi.signal === 'BULLISH') summary += "Le RSI indique une phase de récupération après une zone de survente. ";
-    
-    const ema = indicators.find(i => i.name.includes('EMA'));
-    if (ema && ema.signal === 'BULLISH') summary += "Le croisement des moyennes mobiles (EMA 20/50) confirme le retour du momentum. ";
-    
-    summary += `\n\nCible privilégiée : Breakout identifié avec un score de confiance de ${data.confidenceScore}%.`;
+    if (data.nlpSentiment && data.nlpSentiment.averageScore > 0.3) {
+      summary += `Le sentiment NLP (Alpha-FinBERT) est très positif (+${(data.nlpSentiment.averageScore * 100).toFixed(0)}%), confirmant l'appétit institutionnel. `;
+    }
+
+    if (data.prediction && data.prediction.shortTermTrend === 'UP') {
+      summary += `Le modèle de série temporelle prévoit une continuation haussière avec une probabilité de ${data.prediction.probability}%. `;
+    }
+
+    summary += `\n\nCible privilégiée : Breakout identifié avec un score de confiance hybride de ${data.confidenceScore}%.`;
   } else if (action === 'SELL') {
     summary += `Architecture de prix baissière détectée sur ${asset}. `;
     summary += `Un total de ${bearish.length} signaux techniques pointent vers une distribution des actifs. `;
     
-    const macd = indicators.find(i => i.name.includes('MACD'));
-    if (macd && macd.signal === 'BEARISH') summary += "L'affaiblissement du MACD montre une perte de vitesse des acheteurs. ";
-    
-    summary += `\n\nLe risque de baisse reste majeur tant que les résistances locales ne sont pas franchies. Score de fiabilité : ${data.confidenceScore}%.`;
+    if (data.nlpSentiment && data.nlpSentiment.averageScore < -0.3) {
+      summary += `L'analyse de sentiment FinBERT détecte un "fear index" élevé (${(Math.abs(data.nlpSentiment.averageScore) * 100).toFixed(0)}%), suggérant une faible probabilité de rebond immédiat. `;
+    }
+
+    if (data.prediction && data.prediction.shortTermTrend === 'DOWN') {
+      summary += `La prédiction IA anticipe un nouveau test des supports à court terme (${data.prediction.probability}% proba). `;
+    }
+
+    summary += `\n\nLe risque de baisse reste majeur. Score de fusion : ${data.confidenceScore}%.`;
   } else {
     summary += `Indécision globale observée sur ${asset}. `;
-    summary += "Les indicateurs sont partagés entre accumulation et prise de profit. ";
-    summary += `La stratégie recommandée est la ${data.recommendedStrategy} en attendant un signal directionnel plus clair (Confluence actuelle : ${data.confidenceScore}%).`;
+    if (data.nlpSentiment && Math.abs(data.nlpSentiment.averageScore) < 0.2) {
+      summary += "Le flux d'informations est neutre ou contradictoire, ce qui limite le momentum. ";
+    }
+    summary += `La stratégie recommandée est la ${data.recommendedStrategy} (Confiance hybride : ${data.confidenceScore}%).`;
   }
 
   return summary;

@@ -18,6 +18,8 @@ export interface NewsItem {
   title: string;
   link: string;
   pubDate: string;
+  sentiment?: 'positive' | 'negative' | 'neutral';
+  score?: number; // -1 to 1 or 0-100
 }
 
 export interface IndicatorStatus {
@@ -68,6 +70,19 @@ export interface MarketData {
   
   volatility: 'LOW' | 'MEDIUM' | 'HIGH';
   trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  
+  prediction?: {
+    shortTermTrend: 'UP' | 'DOWN' | 'STABLE';
+    probability: number;
+    targetPrice: number;
+    timeframe: string;
+  };
+  
+  nlpSentiment?: {
+    averageScore: number; // -1 to 1
+    label: string;
+    confluence: number; // 0-100
+  };
   
   history: ChartPoint[];
   news: NewsItem[];

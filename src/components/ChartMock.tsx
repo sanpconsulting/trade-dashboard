@@ -129,13 +129,19 @@ export function ChartMock({ data }: ChartMockProps) {
   };
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-sm flex flex-col overflow-hidden h-full">
-      <div className="px-4 py-2.5 bg-zinc-950/50 border-b border-zinc-800 flex justify-between items-center">
-        <div className="text-[10px] uppercase font-semibold text-zinc-500">
+    <div className="bg-[#0f0f11] border border-zinc-800 rounded-lg flex flex-col overflow-hidden h-full shadow-inner relative">
+      {/* Hardware Grip */}
+      <div className="absolute top-2 left-2 flex gap-0.5 opacity-20">
+        {[...Array(5)].map((_, i) => <div key={i} className="w-0.5 h-1.5 bg-white rounded-full" />)}
+      </div>
+
+      <div className="px-4 py-3 bg-[#131316] border-b border-zinc-800 flex justify-between items-center shadow-inner pt-4">
+        <div className="text-[10px] uppercase font-semibold text-zinc-500 font-mono tracking-widest pl-4 flex items-center">
+          <span className="w-2 h-2 rounded-sm bg-emerald-500 mr-2 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.8)]" />
           {t('syncing')} // {data.asset}
-          <span className="ml-3 px-2 py-0.5 bg-zinc-800 rounded-sm text-zinc-300 font-mono">TF: {data.activeTimeframe || '15m'}</span>
+          <span className="ml-3 px-1.5 py-0.5 bg-emerald-950/20 text-emerald-500 border border-emerald-500/20 rounded text-[9px] tracking-widest ml-4">TF: {data.activeTimeframe || '15m'}</span>
         </div>
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1 border border-zinc-800 rounded bg-[#09090b] p-0.5">
           {[
             { id: 'AREA', icon: Activity, label: t('area') },
             { id: 'LINE', icon: LineChartIcon, label: t('line') },
@@ -146,7 +152,7 @@ export function ChartMock({ data }: ChartMockProps) {
             <button 
               key={type.id}
               onClick={() => setChartType(type.id as ChartType)}
-              className={`p-1 rounded-sm transition-colors ${chartType === type.id ? 'bg-zinc-800 text-blue-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`p-1.5 rounded transition-colors ${chartType === type.id ? 'bg-[#18181b] text-blue-400 shadow-inner' : 'text-zinc-600 hover:text-zinc-400'}`}
               title={type.label}
             >
               <type.icon className="w-3.5 h-3.5" />
@@ -155,21 +161,30 @@ export function ChartMock({ data }: ChartMockProps) {
         </div>
       </div>
       
-      <div className="px-4 py-3 flex justify-between items-start">
+      <div className="px-5 py-4 flex justify-between items-start bg-[#09090b] relative">
+        <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-zinc-800 to-transparent" />
         <div>
-          <h2 className="text-2xl font-mono font-bold text-zinc-100">{data.asset.replace('_', '/').replace('-USD', '').replace('=X', '').replace('=F', '')}</h2>
+          <h2 className="text-2xl font-mono font-bold text-zinc-100 flex items-center shadow-sm">
+            <span className="text-zinc-600 mr-2">{"$"}</span>
+            {data.asset.replace('_', '/').replace('-USD', '').replace('=X', '').replace('=F', '')}
+          </h2>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-mono font-bold text-zinc-100">
+          <div className="text-2xl font-mono font-bold text-zinc-100 drop-shadow-md">
             {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(data.currentPrice)}
           </div>
-          <div className={data.priceChangePercent >= 0 ? 'text-emerald-500 text-[11px] font-mono font-bold' : 'text-red-500 text-[11px] font-mono font-bold'}>
+          <div className={data.priceChangePercent >= 0 ? 'text-emerald-400 text-[11px] font-mono font-bold tracking-wider' : 'text-rose-400 text-[11px] font-mono font-bold tracking-wider'}>
             {data.priceChangePercent >= 0 ? '+' : ''}{data.priceChangePercent.toFixed(2)}% (24H)
           </div>
         </div>
       </div>
 
-      <div className="flex-1 w-full relative min-h-[250px] p-2 bg-zinc-900 border-t border-zinc-800/50">
+      <div className="flex-1 w-full relative min-h-[250px] p-2 bg-[#09090b]">
+        {/* Hardware crosshairs background pattern */}
+        <div className="absolute inset-4 border border-dashed border-zinc-800/50 rounded pointer-events-none" />
+        <div className="absolute left-1/2 top-0 bottom-0 w-px border-l border-dashed border-zinc-800/30 pointer-events-none" />
+        <div className="absolute top-1/2 left-0 right-0 h-px border-t border-dashed border-zinc-800/30 pointer-events-none" />
+        
         <ResponsiveContainer width="100%" height="100%" minHeight={250} minWidth={1}>
           {renderChart()}
         </ResponsiveContainer>

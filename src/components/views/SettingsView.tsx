@@ -130,17 +130,17 @@ export function SettingsView() {
       </div>
 
       <div className="space-y-6 pb-10">
-        <section className="bg-zinc-900 border border-zinc-800 rounded-sm overflow-hidden border-orange-500/30">
-          <div className="px-4 py-3 bg-zinc-950/50 border-b border-orange-500/20 flex items-center justify-between text-[11px] uppercase font-semibold text-orange-400">
+        <section className="bg-[#0f0f11] border border-zinc-800 rounded-lg overflow-hidden border-orange-500/30 shadow-inner">
+          <div className="px-4 py-3 bg-[#131316] border-b border-orange-500/20 flex items-center justify-between text-[11px] uppercase font-semibold text-orange-400 font-mono tracking-widest">
             <div className="flex items-center">
-              <RefreshCw className="w-3 h-3 mr-2" /> Algorithmic Execution
+              <RefreshCw className="w-3.5 h-3.5 mr-2" /> Algorithmic Execution
             </div>
           </div>
-          <div className="p-4 space-y-4">
+          <div className="p-5 space-y-4 bg-[#09090b]">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-xs text-zinc-100 font-medium">{language === 'fr' ? 'Auto-Trading (Beta)' : 'Auto-Trading (Beta)'}</h4>
-                <p className="text-[10px] text-zinc-500 mt-1 max-w-[300px]">
+                <h4 className="text-[11px] font-mono tracking-widest text-zinc-100 font-bold uppercase">{language === 'fr' ? 'Auto-Trading (Beta)' : 'Auto-Trading (Beta)'}</h4>
+                <p className="text-[10px] text-zinc-500 mt-1 max-w-[300px] leading-relaxed">
                   {language === 'fr' 
                     ? "Envoie automatiquement des ordres au broker lorsque le seuil de confluence est atteint." 
                     : "Automatically send orders to the broker when the confluence threshold is reached."}
@@ -148,110 +148,111 @@ export function SettingsView() {
               </div>
               <div 
                 onClick={() => setAutoTrade(!autoTrade)}
-                className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${autoTrade ? 'bg-orange-600' : 'bg-zinc-800'}`}
+                className={`w-10 h-5 rounded-full relative cursor-pointer transition-colors ${autoTrade ? 'bg-orange-600 shadow-[0_0_8px_rgba(234,88,12,0.6)]' : 'bg-[#18181b] border border-zinc-700'}`}
               >
-                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${autoTrade ? 'left-5.5' : 'left-0.5'}`} />
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-zinc-100 shadow-sm transition-all ${autoTrade ? 'left-5.5' : 'left-0.5'}`} />
               </div>
             </div>
 
             {autoTrade && (
-              <div className="pt-4 border-t border-zinc-800 animate-in fade-in slide-in-from-top-2 duration-300">
-                <label className="block text-[10px] uppercase text-zinc-500 mb-2 font-semibold">
+              <div className="pt-4 border-t border-dashed border-zinc-800/80 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="block text-[10px] uppercase text-zinc-500 mb-2 font-mono tracking-widest font-bold">
                   {language === 'fr' ? 'Seuil de Confluence (%)' : 'Confluence Threshold (%)'}
                 </label>
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-4 bg-[#121214] p-3 rounded border border-zinc-800">
                   <input 
                     type="range" 
                     min="50" 
                     max="95" 
                     value={autoThreshold}
                     onChange={(e) => setAutoThreshold(e.target.value)}
-                    className="flex-1 accent-orange-500"
+                    className="flex-1 accent-orange-500 h-1 bg-zinc-800 rounded-full appearance-none"
                   />
-                  <span className="text-xs font-mono text-orange-500 font-bold w-8 text-right">{autoThreshold}%</span>
+                  <span className="text-sm font-mono text-orange-400 font-bold w-10 text-right">{autoThreshold}%</span>
                 </div>
               </div>
             )}
 
             {autoTrade && (
-              <div className="pt-4 border-t border-zinc-800 animate-in fade-in slide-in-from-top-2 duration-300">
-                <label className="block text-[10px] uppercase text-zinc-500 mb-2 font-semibold">
+              <div className="pt-4 border-t border-dashed border-zinc-800/80 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="block text-[10px] uppercase text-zinc-500 mb-2 font-mono tracking-widest font-bold">
                   {language === 'fr' ? 'Montant à miser par ordre (USD)' : 'Stake Amount Per Order (USD)'}
                 </label>
                 <input 
                   type="number" 
                   value={stakePerOrder}
                   onChange={(e) => setStakePerOrder(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-2 text-xs font-mono text-zinc-300 focus:outline-none focus:border-orange-500 transition-colors" 
+                  className="w-full bg-[#121214] border border-zinc-800 rounded px-3 py-2.5 text-sm font-mono font-bold text-zinc-100 focus:outline-none focus:border-orange-500 transition-colors shadow-inner" 
                   placeholder="100.00"
                 />
-                <p className="text-[10px] text-zinc-600 mt-1 italic">
+                <div className="text-[10px] text-zinc-600 mt-2 italic flex items-center">
+                   <div className="w-1 h-1 bg-orange-500 rounded-full mr-2 opacity-50"/>
                   {language === 'fr' 
-                    ? "Ce montant est plafonné par vos limites journalières et la perte maximale par trade." 
+                    ? "Ce montant est plafonné par vos limites journalières et la perte max par trade." 
                     : "This amount is capped by your daily limits and max risk per trade settings."}
-                </p>
+                </div>
               </div>
             )}
           </div>
         </section>
 
-        <section className="bg-zinc-900 border border-zinc-800 rounded-sm overflow-hidden">
-          <div className="px-4 py-3 bg-zinc-950/50 border-b border-zinc-800 flex items-center text-[11px] uppercase font-semibold text-zinc-500">
-            <Key className="w-3 h-3 mr-2" /> OANDA Connectivity (API)
+        <section className="bg-[#0f0f11] border border-zinc-800 rounded-lg overflow-hidden shadow-inner">
+          <div className="px-4 py-3 bg-[#131316] border-b border-zinc-800 flex items-center text-[11px] uppercase font-semibold text-zinc-400 font-mono tracking-widest">
+            <Key className="w-3.5 h-3.5 mr-2" /> OANDA Connectivity (API)
           </div>
-          <div className="p-4 space-y-4">
-            <p className="text-[10px] text-zinc-500 italic mb-2">
+          <div className="p-5 space-y-5 bg-[#09090b]">
+            <p className="text-[10px] text-zinc-500 italic mb-2 border-l-2 border-blue-500/30 pl-2">
               {language === 'fr' 
                 ? "Configurez vos clés API OANDA dans les paramètres (Secrets) de la plateforme pour activer le trading réel." 
                 : "Set your OANDA API keys in the platform settings (Secrets) to enable live trading."}
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="md:col-span-2">
-                <label className="block text-[10px] uppercase text-zinc-500 mb-1.5 font-semibold">
+                <label className="block text-[10px] uppercase text-zinc-500 mb-2 font-mono tracking-widest font-bold">
                   {language === 'fr' ? 'Environnement du Broker' : 'Broker Environment'}
                 </label>
-                <div className="flex bg-zinc-950 p-1 rounded-sm border border-zinc-800">
+                <div className="flex bg-[#121214] p-1 rounded border border-zinc-800 shadow-inner">
                   <button 
                     onClick={() => setBrokerEnv('practice')}
-                    className={`flex-1 py-1 text-[10px] font-bold rounded-sm transition-all ${brokerEnv === 'practice' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    className={`flex-1 py-2 text-[10px] font-mono tracking-widest font-bold rounded transition-all ${brokerEnv === 'practice' ? 'bg-[#18181b] text-blue-400 border border-blue-500/20 shadow-inner' : 'text-zinc-600 hover:text-zinc-400'}`}
                   >
                     DEMO / PRACTICE
                   </button>
                   <button 
                     onClick={() => setBrokerEnv('live')}
-                    className={`flex-1 py-1 text-[10px] font-bold rounded-sm transition-all ${brokerEnv === 'live' ? 'bg-rose-600 text-white shadow-[0_0_10px_rgba(225,29,72,0.3)]' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    className={`flex-1 py-2 text-[10px] font-mono tracking-widest font-bold rounded transition-all ${brokerEnv === 'live' ? 'bg-rose-950/30 text-rose-500 border border-rose-500/20 shadow-inner' : 'text-zinc-600 hover:text-zinc-400'}`}
                   >
                     LIVE / PRODUCTION
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] uppercase text-zinc-500 mb-1.5 font-semibold">{t('api_key')}</label>
+                <label className="block text-[10px] uppercase text-zinc-500 mb-2 font-mono tracking-widest font-bold">{t('api_key')}</label>
                 <input 
                   type="password" 
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder={language === 'fr' ? "Clé API OANDA" : "OANDA API Key"} 
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-2 text-xs font-mono text-zinc-300 focus:outline-none focus:border-blue-500 transition-colors" 
+                  className="w-full bg-[#121214] border border-zinc-800 rounded px-3 py-2.5 text-xs font-mono font-bold text-zinc-100 focus:outline-none focus:border-blue-500 transition-colors shadow-inner" 
                 />
               </div>
               <div>
-                <label className="block text-[10px] uppercase text-zinc-500 mb-1.5 font-semibold">{t('api_secret')}</label>
+                <label className="block text-[10px] uppercase text-zinc-500 mb-2 font-mono tracking-widest font-bold">{t('api_secret')}</label>
                 <input 
                   type="password" 
                   value={apiSecret}
                   onChange={(e) => setApiSecret(e.target.value)}
                   placeholder={language === 'fr' ? "Account ID" : "Account ID"} 
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-2 text-xs font-mono text-zinc-300 focus:outline-none focus:border-blue-500 transition-colors" 
+                  className="w-full bg-[#121214] border border-zinc-800 rounded px-3 py-2.5 text-xs font-mono font-bold text-zinc-100 focus:outline-none focus:border-blue-500 transition-colors shadow-inner" 
                 />
               </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="mt-4 pt-4 border-t border-dashed border-zinc-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex-1">
                 {testResult && (
-                  <div className={`text-[10px] font-mono px-3 py-2 rounded-sm border ${
-                    testResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                  <div className={`text-[10px] font-mono px-3 py-2 rounded border shadow-inner ${
+                    testResult.success ? 'bg-emerald-950/20 border-emerald-500/20 text-emerald-400' : 'bg-rose-950/20 border-rose-500/20 text-rose-400'
                   } animate-in fade-in slide-in-from-left-2 duration-300`}>
                     {testResult.success ? <Check className="w-2.5 h-2.5 inline mr-1.5" /> : null}
                     {testResult.message}
@@ -261,94 +262,94 @@ export function SettingsView() {
               <button 
                 onClick={handleTestConnection}
                 disabled={testing}
-                className="flex items-center justify-center px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-sm text-[10px] uppercase font-bold transition-all disabled:opacity-50"
+                className="flex items-center justify-center px-4 py-2 bg-[#18181b] hover:bg-zinc-800 border border-zinc-700 text-zinc-300 rounded text-[10px] font-mono tracking-widest uppercase font-bold transition-all disabled:opacity-50"
               >
-                {testing && <Loader2 className="w-3 h-3 mr-2 animate-spin" />}
-                {language === 'fr' ? 'Tester la Connexion' : 'Test Connection'}
+                {testing && <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />}
+                {language === 'fr' ? 'TESTER_CONNEXION' : 'TEST_CONNECTION'}
               </button>
             </div>
           </div>
         </section>
 
-        <section className="bg-zinc-900 border border-zinc-800 rounded-sm overflow-hidden">
-          <div className="px-4 py-3 bg-zinc-950/50 border-b border-zinc-800 flex items-center text-[11px] uppercase font-semibold text-zinc-500">
-            <Shield className="w-3 h-3 mr-2" /> {t('risk')}
+        <section className="bg-[#0f0f11] border border-zinc-800 rounded-lg overflow-hidden shadow-inner">
+          <div className="px-4 py-3 bg-[#131316] border-b border-zinc-800 flex items-center text-[11px] uppercase font-semibold text-zinc-400 font-mono tracking-widest">
+            <Shield className="w-3.5 h-3.5 mr-2" /> {t('risk')}
           </div>
-          <div className="p-4 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="p-5 space-y-4 bg-[#09090b]">
+            <div className="grid grid-cols-2 gap-5">
               <div>
-                <label className="block text-[10px] uppercase text-zinc-500 mb-1.5 font-semibold">{t('max_risk')}</label>
+                <label className="block text-[10px] uppercase text-zinc-500 mb-2 font-mono tracking-widest font-bold">{t('max_risk')}</label>
                 <input 
                   type="number" 
                   value={maxRisk}
                   onChange={(e) => setMaxRisk(e.target.value)}
                   step={0.1} 
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-2 text-xs font-mono text-zinc-300 focus:outline-none focus:border-blue-500 transition-colors" 
+                  className="w-full bg-[#121214] border border-zinc-800 rounded px-3 py-2.5 text-xs font-mono font-bold text-zinc-100 focus:outline-none focus:border-blue-500 transition-colors shadow-inner" 
                 />
               </div>
               <div>
-                <label className="block text-[10px] uppercase text-zinc-500 mb-1.5 font-semibold">{t('daily_limit')}</label>
+                <label className="block text-[10px] uppercase text-zinc-500 mb-2 font-mono tracking-widest font-bold">{t('daily_limit')}</label>
                 <input 
                   type="number" 
                   value={lossLimit}
                   onChange={(e) => setLossLimit(e.target.value)}
                   step={0.1} 
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-2 text-xs font-mono text-zinc-300 focus:outline-none focus:border-blue-500 transition-colors" 
+                  className="w-full bg-[#121214] border border-zinc-800 rounded px-3 py-2.5 text-xs font-mono font-bold text-zinc-100 focus:outline-none focus:border-blue-500 transition-colors shadow-inner" 
                 />
               </div>
             </div>
-            <div className="flex items-center mt-3 pt-3 border-t border-zinc-800">
+            <div className="flex items-center mt-3 pt-4 border-t border-dashed border-zinc-800/80">
               <input 
                 type="checkbox" 
                 checked={hardStop} 
                 onChange={(e) => setHardStop(e.target.checked)}
                 id="hardStop" 
-                className="mr-2" 
+                className="w-4 h-4 rounded border-zinc-700 bg-[#121214] accent-blue-500 mr-3" 
               />
-              <label htmlFor="hardStop" className="text-[11px] text-zinc-300 cursor-pointer">{t('hard_stop')}</label>
+              <label htmlFor="hardStop" className="text-[11px] text-zinc-300 font-mono tracking-widest font-bold cursor-pointer">{t('hard_stop')}</label>
             </div>
 
             <div className="mt-4 pt-4 border-t border-zinc-800 flex justify-end">
                <button 
                 onClick={handleResetRisk}
-                className="text-[10px] uppercase font-bold text-rose-500 hover:text-rose-400 transition-colors bg-rose-500/10 px-3 py-1.5 rounded-sm border border-rose-500/20"
+                className="text-[10px] uppercase font-bold tracking-widest font-mono text-rose-500 hover:text-rose-400 transition-colors bg-rose-950/20 px-4 py-2 rounded border border-rose-500/20"
                >
-                 {language === 'fr' ? 'Réinitialiser les Limites Journalières' : 'Reset Daily Limits'}
+                 {language === 'fr' ? 'RÉINITIALISER_LIMITES' : 'RESET_LIMITS'}
                </button>
             </div>
           </div>
         </section>
 
-        <section className="bg-zinc-900 border border-zinc-800 rounded-sm overflow-hidden">
-          <div className="px-4 py-3 bg-zinc-950/50 border-b border-zinc-800 flex items-center text-[11px] uppercase font-semibold text-zinc-500">
-            <Bell className="w-3 h-3 mr-2" /> {t('notifications')}
+        <section className="bg-[#0f0f11] border border-zinc-800 rounded-lg overflow-hidden shadow-inner">
+          <div className="px-4 py-3 bg-[#131316] border-b border-zinc-800 flex items-center text-[11px] uppercase font-semibold text-zinc-400 font-mono tracking-widest">
+            <Bell className="w-3.5 h-3.5 mr-2" /> {t('notifications')}
           </div>
-          <div className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-zinc-300">{t('push_notif')}</span>
+          <div className="p-5 space-y-4 bg-[#09090b]">
+            <div className="flex items-center justify-between p-3 bg-[#121214] rounded border border-zinc-800/50">
+              <span className="text-[11px] font-mono tracking-widest font-bold text-zinc-300 uppercase">{t('push_notif')}</span>
               <input 
                 type="checkbox" 
                 checked={notifPush}
                 onChange={(e) => setNotifPush(e.target.checked)}
-                className="cursor-pointer" 
+                className="w-4 h-4 rounded border-zinc-700 bg-[#121214] accent-blue-500" 
               />
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-zinc-300">{t('email_summary')}</span>
+            <div className="flex items-center justify-between p-3 bg-[#121214] rounded border border-zinc-800/50">
+              <span className="text-[11px] font-mono tracking-widest font-bold text-zinc-300 uppercase">{t('email_summary')}</span>
               <input 
                 type="checkbox" 
                 checked={notifEmail}
                 onChange={(e) => setNotifEmail(e.target.checked)}
-                className="cursor-pointer" 
+                className="w-4 h-4 rounded border-zinc-700 bg-[#121214] accent-blue-500" 
               />
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-zinc-300">{t('sound_fx')}</span>
+            <div className="flex items-center justify-between p-3 bg-[#121214] rounded border border-zinc-800/50">
+              <span className="text-[11px] font-mono tracking-widest font-bold text-zinc-300 uppercase">{t('sound_fx')}</span>
               <input 
                 type="checkbox" 
                 checked={notifSound}
                 onChange={(e) => setNotifSound(e.target.checked)}
-                className="cursor-pointer" 
+                className="w-4 h-4 rounded border-zinc-700 bg-[#121214] accent-blue-500" 
               />
             </div>
           </div>

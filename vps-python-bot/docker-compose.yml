@@ -1,0 +1,41 @@
+services:
+  # L'agent de trading
+  ai-trader:
+    build: ./bot
+    env_file: .env
+    volumes:
+      - bot_logs:/app/logs
+    networks:
+      - secure-network
+
+  # L'interface de contrôle avec authentification
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "8501:8501"
+    env_file: .env
+    volumes:
+      - dash_data:/app/data
+      - bot_logs:/app/logs
+    networks:
+      - secure-network
+
+  # Le garde barrière (Nginx + SSL)
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl # Dossier pour les certifs let's encrypt
+    networks:
+      - secure-network
+
+networks:
+  secure-network:
+    driver: bridge
+
+volumes:
+  bot_logs:
+  dash_data:

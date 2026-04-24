@@ -102,30 +102,139 @@ function calculateOBV(closes: number[], volumes: number[]): number {
   return obv;
 }
 
-function analyzeNewsSentiment(news: NewsItem[]): { score: number; signal: 'BULLISH' | 'BEARISH' | 'NEUTRAL'; description: string } {
-  const POSITIVE_GEO = ["peace", "growth", "recovery", "deal", "agreement", "stimulus", "cut", "easing", "bullish", "adoption", "profit", "stability", "support"];
-  const NEGATIVE_GEO = ["war", "conflict", "recession", "inflation", "hike", "default", "scandal", "sanctions", "uncertainty", "crisis", "fear", "bearish", "restraint", "protest", "election"];
+import { GoogleGenAI, Type } from "@google/genai";
+
+// Initialize the real AI engine
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+async function analyzeMarketWithAi(news: NewsItem[], prices: number[], asset: string): Promise<{ 
+  sentiment: { score: number; signal: 'BULLISH' | 'BEARISH' | 'NEUTRAL'; description: string; items: NewsItem[] },
+  prediction: MarketData['prediction']
+}> {
+  if (news.length === 0 && prices.length === 0) {
+    return { 
+      sentiment: { score: 50, signal: 'NEUTRAL', description: 'Aucune donnée disponible', items: [] },
+      prediction: undefined
+    };
+  }
+
+  try {
+    const newsContext = news.map(n => `- ${n.title}`).join('\n');
+    const priceContext = prices.slice(-20).join(', ');
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Tu es un expert quantitatif. Analyse l'actif ${asset} via ces données:
+      
+FLUX NEWS:
+${newsContext}
+
+DERNIERS PRIX DE CLÔTURE (20 dernières périodes):
+${priceContext}
+
+TÂCHE:
+1. Analyse le sentiment des news.
+2. Identifie la tendance courte basée sur les prix.
+3. Prédis le prochain mouvement probable.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            sentiment: {
+              type: Type.OBJECT,
+              properties: {
+                globalScore: { type: Type.NUMBER },
+                signal: { type: Type.STRING, enum: ["BULLISH", "BEARISH", "NEUTRAL"] },
+                description: { type: Type.STRING },
+                items: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      title: { type: Type.STRING },
+                      sentiment: { type: Type.STRING, enum: ["positive", "negative", "neutral"] },
+                      score: { type: Type.NUMBER }
+                    }
+                  }
+                }
+              }
+            },
+            prediction: {
+              type: Type.OBJECT,
+              properties: {
+                shortTermTrend: { type: Type.STRING, enum: ["UP", "DOWN", "STABLE"] },
+                probability: { type: Type.NUMBER },
+                targetPrice: { type: Type.NUMBER },
+                reasoning: { type: Type.STRING }
+              }
+            }
+          },
+          required: ["sentiment", "prediction"]
+        }
+      }
+    });
+
+    const result = JSON.parse(response.text);
+    
+    return {
+      sentiment: {
+        score: result.sentiment.globalScore,
+        signal: result.sentiment.signal,
+        description: result.sentiment.description,
+        items: news.map(item => {
+           const aiMatch = result.sentiment.items.find((aiI: any) => aiI.title === item.title);
+           return { ...item, sentiment: aiMatch?.sentiment || 'neutral', score: aiMatch?.score || 0 };
+        })
+      },
+      prediction: {
+        shortTermTrend: result.prediction.shortTermTrend,
+        probability: result.prediction.probability,
+        targetPrice: result.prediction.targetPrice,
+        timeframe: 'IA Projection (15-60m)'
+      }
+    };
+  } catch (error) {
+    console.error("AI Analysis Failure:", error);
+    return { 
+      sentiment: { score: 50, signal: 'NEUTRAL', description: 'Erreur IA', items: news },
+      prediction: undefined
+    };
+  }
+}
+
+function predictShortTermTrend(closes: number[]): MarketData['prediction'] {
+  if (closes.length < 20) return undefined;
   
-  let score = 50;
-  let posCount = 0;
-  let negCount = 0;
+  // Simple Linear Regression on the last 10 points
+  const lastPoints = closes.slice(-10);
+  const n = lastPoints.length;
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
   
-  news.forEach(item => {
-    const text = (item.title + " " + (item as any).description || "").toLowerCase();
-    POSITIVE_GEO.forEach(word => { if (text.includes(word)) posCount++; });
-    NEGATIVE_GEO.forEach(word => { if (text.includes(word)) negCount++; });
-  });
-  
-  if (posCount > negCount) {
-    score = 50 + Math.min(45, (posCount - negCount) * 10);
-  } else if (negCount > posCount) {
-    score = 50 - Math.min(45, (negCount - posCount) * 10);
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += lastPoints[i];
+    sumXY += i * lastPoints[i];
+    sumX2 += i * i;
   }
   
-  const signal = score > 60 ? 'BULLISH' : score < 40 ? 'BEARISH' : 'NEUTRAL';
-  const description = score > 60 ? 'Optimisme Macro' : score < 40 ? 'Incertitude Géo-éco' : 'Stabilité Politique';
+  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
   
-  return { score, signal, description };
+  // Forecast next point
+  const nextVal = slope * n + intercept;
+  const currentVal = lastPoints[n-1];
+  const diff = (nextVal - currentVal) / currentVal;
+  
+  const probability = Math.min(0.95, 0.5 + Math.abs(slope / currentVal) * 500);
+  const trend = diff > 0.001 ? 'UP' : diff < -0.001 ? 'DOWN' : 'STABLE';
+  
+  return {
+    shortTermTrend: trend,
+    probability: Math.round(probability * 100),
+    targetPrice: parseFloat(nextVal.toFixed(4)),
+    timeframe: 'Short-Term (AI Model)'
+  };
 }
 
 export async function fetchRealMarketData(symbol: string, timeframe: string = '15m'): Promise<MarketData> {
@@ -150,22 +259,109 @@ export async function fetchRealMarketData(symbol: string, timeframe: string = '1
     const oandaSymbol = yahooToOanda(symbol);
 
     // For News, we still want to map to Yahoo to get RSS
-    const response = await authFetch(`/api/oanda/candles?symbol=${oandaSymbol}&granularity=${granularity}&count=100`, {
-      headers: apiKey ? {
-        'x-broker-api-key': apiKey,
-        'x-broker-account-id': accountId || ''
-      } : {}
-    });
-    
-    if (!response.ok) {
-      if (response.status === 401) throw new Error("OANDA API Key manquante ou invalide.");
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Erreur OANDA : ${response.statusText}`);
+    let response;
+    try {
+      response = await authFetch(`/api/oanda/candles?symbol=${oandaSymbol}&granularity=${granularity}&count=100`, {
+        headers: apiKey ? {
+          'x-broker-api-key': apiKey,
+          'x-broker-account-id': accountId || ''
+        } : {}
+      });
+    } catch (netErr: any) {
+      console.error("Network Fetch Error:", netErr);
+      throw new Error(`Erreur de connexion serveur: ${netErr.message}`);
     }
     
-    const json = await response.json();
+    let json;
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        console.warn("OANDA API Key missing or invalid. Falling back to Yahoo Finance.");
+        
+        // Yahoo Interval Mapping
+        const yahooIntervalMap: Record<string, string> = {
+          '5m': '5m',
+          '15m': '15m',
+          '1h': '1h',
+          '4h': '60m', // Yahoo doesn't support 4h, fallback to 1h
+          '1d': '1d',
+          '1w': '1wk'
+        };
+        const yahooInterval = yahooIntervalMap[timeframe] || '15m';
+        
+        // Yahoo Range Mapping depending on interval to ensure we get enough data
+        const yahooRangeMap: Record<string, string> = {
+          '5m': '1d',
+          '15m': '2d',
+          '1h': '1wk',
+          '4h': '1mo',
+          '1d': '3mo',
+          '1w': '1y'
+        };
+        const yahooRange = yahooRangeMap[timeframe] || '2d';
+
+        // Fallback to Yahoo if OANDA is not configured
+        let yahooRes;
+        try {
+          yahooRes = await authFetch(`/api/yahoo?symbol=${symbol}&interval=${yahooInterval}&range=${yahooRange}`);
+        } catch (yahooNetErr: any) {
+          console.error("Yahoo Fetch Network Error:", yahooNetErr);
+          throw new Error(`Erreur réseau Yahoo: ${yahooNetErr.message}`);
+        }
+
+        if (!yahooRes.ok) {
+          let errorText = "Erreur Yahoo Fallback";
+          try {
+            const errJson = await yahooRes.json();
+            errorText = `Erreur Yahoo Fallback: ${errJson.error} - ${errJson.detail}`;
+          } catch (e) {
+            errorText = `Erreur Yahoo Fallback (Status ${yahooRes.status})`;
+          }
+          throw new Error(errorText);
+        }
+        
+        let yahooData;
+        try {
+          yahooData = await yahooRes.json();
+        } catch (jsonErr: any) {
+          console.error("Yahoo JSON Parse Error:", jsonErr);
+          throw new Error("Erreur de format des données Yahoo");
+        }
+        
+        const result = yahooData?.chart?.result?.[0];
+        if (!result) throw new Error("Yahoo API returned empty result");
+        
+        const timestamps = result.timestamp || [];
+        const quote = result.indicators?.quote?.[0];
+        
+        json = { candles: [] };
+        if (quote && quote.close) {
+          for (let i = 0; i < timestamps.length; i++) {
+            if (quote.close[i] !== null && quote.close[i] !== undefined) {
+              json.candles.push({
+                complete: true,
+                time: new Date(timestamps[i] * 1000).toISOString(),
+                volume: quote.volume?.[i] || 0,
+                mid: {
+                  o: quote.open?.[i] || quote.close[i],
+                  h: quote.high?.[i] || quote.close[i],
+                  l: quote.low?.[i] || quote.close[i],
+                  c: quote.close[i]
+                }
+              });
+            }
+          }
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erreur OANDA : ${response.statusText}`);
+      }
+    } else {
+      json = await response.json();
+    }
+    
     if (!json.candles || json.candles.length === 0) {
-      throw new Error("Aucune donnée reçue d'OANDA");
+      throw new Error("Aucune donnée reçue");
     }
 
     const candles = json.candles.filter((c: any) => c.complete);
@@ -232,7 +428,12 @@ export async function fetchRealMarketData(symbol: string, timeframe: string = '1
     }), 9);
     
     const stochK = ((currentPrice - Math.min(...lows.slice(-14))) / (Math.max(...highs.slice(-14)) - Math.min(...lows.slice(-14)) || 1)) * 100;
-    const newsSentiment = analyzeNewsSentiment(news);
+    
+    // Hybrid AI Analysis (Real-time News + Price Action Correlation)
+    const aiAnalysis = await analyzeMarketWithAi(news, closes, symbol);
+    const newsSentiment = aiAnalysis.sentiment;
+    const prediction = aiAnalysis.prediction;
+    
     const adx = Math.abs(priceChangePercent) * 15; 
     const psar = currentPrice > ema20 ? 'BULLISH' : 'BEARISH';
     const cmf = (priceChangePercent * volumes[volumes.length-1] / (volumes.reduce((a, b) => a + b, 0) / 10 || 1)) * 5;
@@ -293,22 +494,10 @@ export async function fetchRealMarketData(symbol: string, timeframe: string = '1
         description: 'Convergence Volume/Prix'
       },
       {
-        name: 'STOCH (14,3,3)',
-        value: stochK.toFixed(2),
-        signal: stochK < 20 ? 'BULLISH' : stochK > 80 ? 'BEARISH' : 'NEUTRAL',
-        description: 'Momentum vs Étendue'
-      },
-      {
         name: 'Institutional (200)',
         value: ema200.toFixed(2),
         signal: currentPrice > ema200 ? 'BULLISH' : 'BEARISH',
         description: 'Tendance Long Terme'
-      },
-      {
-        name: 'Bollinger Bands',
-        value: 'Volatility Band',
-        signal: currentPrice > (ema20 + 2 * atr) ? 'BEARISH' : currentPrice < (ema20 - 2 * atr) ? 'BULLISH' : 'NEUTRAL',
-        description: 'Position relative à la volatilité'
       }
     ];
 
@@ -319,11 +508,20 @@ export async function fetchRealMarketData(symbol: string, timeframe: string = '1
     
     const sentimentScore = newsSentiment.score;
     const fundamentalScore = currentPrice > ema200 ? 75 : 45; 
-    const confidenceScore = Math.floor((techScore * 0.6) + (sentimentScore * 0.2) + (fundamentalScore * 0.2));
+    
+    // Logique de Fusion : Hybrid Confidence Score
+    // weights: Technical (40%), AI Sentiment (40%), AI Prediction (20%)
+    const confidenceScore = Math.floor(
+      (techScore * 0.40) + 
+      (sentimentScore * 0.40) + 
+      ((prediction?.probability || 50) * 0.20)
+    );
     
     let action: MarketData['recommendedAction'] = 'WAIT';
-    if (confidenceScore > 75 && bullishCount >= 6) action = 'BUY';
-    else if (confidenceScore < 35 && bearishCount >= 6) action = 'SELL';
+    // Action Logic: Requires Confluence between Technicals and AI Insights
+    if (confidenceScore > 75 && techScore > 60 && sentimentScore > 60) action = 'BUY';
+    else if (confidenceScore < 30 && techScore < 40 && sentimentScore < 40) action = 'SELL';
+    else if (confidenceScore > 60 || confidenceScore < 40) action = 'REDUCE';
 
     const decMatches = currentPrice.toString().match(/\.(\d+)/);
     const decimals = decMatches ? decMatches[1].length : 2;
@@ -340,8 +538,14 @@ export async function fetchRealMarketData(symbol: string, timeframe: string = '1
       sentimentScore: Math.floor(sentimentScore),
       confidenceScore,
       recommendedAction: action,
-      recommendedStrategy: action === 'BUY' ? 'Trend Following' : action === 'SELL' ? 'Momentum Short' : 'Hedges/Neutral',
+      recommendedStrategy: action === 'BUY' ? 'Trend Following + News Bias' : action === 'SELL' ? 'Aggressive Sentiment Short' : 'Hedges/Neutral',
       detailedIndicators,
+      prediction,
+      nlpSentiment: {
+        averageScore: (sentimentScore / 50) - 1, // Map 0-100 to -1..1
+        label: newsSentiment.signal,
+        confluence: Math.floor(Math.abs(sentimentScore - 50) * 2) 
+      },
       tradePlan: {
         entry: action === 'WAIT' ? null : r(currentPrice),
         stopLoss: action === 'WAIT' ? null : action === 'BUY' ? r(currentPrice - atr * 1.5) : r(currentPrice + atr * 1.5),
@@ -352,7 +556,7 @@ export async function fetchRealMarketData(symbol: string, timeframe: string = '1
       volatility: atr / currentPrice > 0.005 ? 'HIGH' : 'MEDIUM',
       trend: techScore > 60 ? 'BULLISH' : techScore < 40 ? 'BEARISH' : 'NEUTRAL',
       history: history,
-      news: news
+      news: newsSentiment.items 
     };
 
   } catch (error) {

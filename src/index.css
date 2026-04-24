@@ -8,22 +8,56 @@
   --color-bullish: #10B981;
   --color-bearish: #EF4444;
   --color-neutral: #3B82F6;
+  
+  --color-emerald-solid: #10B981;
+  --color-emerald-glow: rgba(16, 185, 129, 0.2);
+  --color-rose-solid: #F43F5E;
+  --color-rose-glow: rgba(244, 63, 94, 0.2);
+
+  @keyframes scan {
+    from { transform: translateY(-100%); }
+    to { transform: translateY(1000%); }
+  }
 }
 
 @layer utilities {
   .tech-border {
-    @apply border border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 transition-all;
+    @apply border border-white/[0.05] bg-zinc-900/40 backdrop-blur-md transition-all duration-300;
+  }
+  .tech-card {
+    @apply bg-[#08080a] border border-white/[0.04] shadow-[0_4px_30px_rgba(0,0,0,0.8)] rounded-xl overflow-hidden backdrop-blur-2xl relative;
+    background-image: radial-gradient(circle at top left, rgba(255,255,255,0.015), transparent 70%);
   }
   .tech-label {
-    @apply text-[10px] uppercase font-bold tracking-widest text-zinc-500 font-mono;
+    @apply text-[8px] uppercase font-black tracking-[0.4em] text-zinc-600 font-mono;
   }
   .tech-value {
-    @apply font-mono font-bold text-zinc-100;
+    @apply font-mono font-black text-zinc-100;
+  }
+  .glass-panel {
+    @apply bg-zinc-950/20 backdrop-blur-3xl border border-white/[0.04];
+  }
+  .neo-shadow {
+    @apply shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_32px_rgba(0,0,0,0.8)];
   }
 }
 
 body {
-  @apply bg-[#09090b] text-[#fafafa] font-sans antialiased;
+  @apply bg-[#050505] text-[#fafafa] font-sans antialiased selection:bg-blue-500/30 overflow-hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 9999;
+  mix-blend-mode: overlay;
 }
 
 /* Custom scrollbar for webkit */

@@ -12,6 +12,9 @@ const APP_PASSWORD = process.env.APP_PASSWORD || 'admin123';
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
+  
+  // Confiance au proxy pour identifier correctement l'IP
+  app.set('trust proxy', 1);
 
   // 1. Security Headers
   app.use(helmet({
@@ -42,6 +45,14 @@ async function startServer() {
     });
   };
 
+  const safeJson = async (response: Response) => {
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await response.json();
+    }
+    return { error: `Invalid content type: ${contentType}`, status: response.status };
+  };
+
   // 4. Auth Endpoints
   app.post("/api/login", loginLimiter, (req, res) => {
     const { password } = req.body;
@@ -67,13 +78,17 @@ async function startServer() {
       const accountId = clientAccount || process.env.BROKER_ACCOUNT_ID;
       const environment = process.env.BROKER_ENVIRONMENT || 'practice';
 
-      if (!apiKey || !accountId) return res.status(401).json({ error: "Missing OANDA credentials" });
+      if (!apiKey || !accountId) return res.status(400).json({ error: "Missing OANDA credentials" });
 
       const baseUrl = environment === 'live' ? 'https://api-fxtrade.oanda.com' : 'https://api-fxpractice.oanda.com';
       const response = await fetch(`${baseUrl}/v3/accounts/${accountId}/summary`, {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
-      const data = await response.json();
+      
+      const data = await safeJson(response);
+      if (!response.ok) {
+        return res.status(response.status === 401 || response.status === 403 ? 400 : response.status).json(data);
+      }
       res.json(data);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -89,13 +104,16 @@ async function startServer() {
       const accountId = clientAccount || process.env.BROKER_ACCOUNT_ID;
       const environment = process.env.BROKER_ENVIRONMENT || 'practice';
 
-      if (!apiKey || !accountId) return res.status(401).json({ error: "Missing OANDA credentials" });
+      if (!apiKey || !accountId) return res.status(400).json({ error: "Missing OANDA credentials" });
 
       const baseUrl = environment === 'live' ? 'https://api-fxtrade.oanda.com' : 'https://api-fxpractice.oanda.com';
       const response = await fetch(`${baseUrl}/v3/accounts/${accountId}/openTrades`, {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
-      const data = await response.json();
+      const data = await safeJson(response);
+      if (!response.ok) {
+        return res.status(response.status === 401 || response.status === 403 ? 400 : response.status).json(data);
+      }
       res.json(data);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -111,13 +129,16 @@ async function startServer() {
       const accountId = clientAccount || process.env.BROKER_ACCOUNT_ID;
       const environment = process.env.BROKER_ENVIRONMENT || 'practice';
 
-      if (!apiKey || !accountId) return res.status(401).json({ error: "Missing OANDA credentials" });
+      if (!apiKey || !accountId) return res.status(400).json({ error: "Missing OANDA credentials" });
 
       const baseUrl = environment === 'live' ? 'https://api-fxtrade.oanda.com' : 'https://api-fxpractice.oanda.com';
       const response = await fetch(`${baseUrl}/v3/accounts/${accountId}/pendingOrders`, {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
-      const data = await response.json();
+      const data = await safeJson(response);
+      if (!response.ok) {
+        return res.status(response.status === 401 || response.status === 403 ? 400 : response.status).json(data);
+      }
       res.json(data);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -133,14 +154,17 @@ async function startServer() {
       const accountId = clientAccount || process.env.BROKER_ACCOUNT_ID;
       const environment = process.env.BROKER_ENVIRONMENT || 'practice';
 
-      if (!apiKey || !accountId) return res.status(401).json({ error: "Missing OANDA credentials" });
+      if (!apiKey || !accountId) return res.status(400).json({ error: "Missing OANDA credentials" });
 
       const baseUrl = environment === 'live' ? 'https://api-fxtrade.oanda.com' : 'https://api-fxpractice.oanda.com';
       // Fetch last 50 transactions for history
       const response = await fetch(`${baseUrl}/v3/accounts/${accountId}/transactions?pageSize=50`, {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
-      const data = await response.json();
+      const data = await safeJson(response);
+      if (!response.ok) {
+        return res.status(response.status === 401 || response.status === 403 ? 400 : response.status).json(data);
+      }
       res.json(data);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -260,136 +284,6 @@ async function startServer() {
     }
   });
 
-  // Local AI (LLaMA) Proxy
-  app.get("/api/models", authenticateToken, async (req, res) => {
-    try {
-      const customUrl = req.query.ollamaUrl as string;
-      let llmUrl = customUrl || process.env.LLM_API_URL || 'http://host.docker.internal:11434/api/generate';
-      // Normalize base URL
-      const baseUrl = llmUrl.replace('/api/generate', '').replace('/api/tags', '');
-      
-      let response;
-      let usedUrl = '';
-
-      const fallbackUrls = customUrl 
-        ? [`${baseUrl}/api/tags`]
-        : [
-          `${baseUrl}/api/tags`,
-          'http://172.17.0.1:11434/api/tags',
-          'http://172.18.0.1:11434/api/tags',
-          'http://localhost:11434/api/tags'
-        ];
-
-      for (const url of fallbackUrls) {
-        try {
-          usedUrl = url;
-          response = await fetch(url, { signal: AbortSignal.timeout(3000) });
-          if (response.ok) break;
-        } catch (e: any) {
-          // Suppress verbose logging for background polling on expected unreachable host
-          response = null;
-        }
-      }
-
-      if (!response || !response.ok) {
-        // Return a default response instead of throwing 500 to keep the UI clean
-        // especially when the user has chosen the local QuantEngine alternative.
-        return res.json({ 
-          models: ['QuantEngine_V2_Local'], 
-          status: 'offline',
-          notice: 'Ollama not detected. Using local quant logic.' 
-        });
-      }
-
-      const data = await response.json();
-      const models = data.models?.map((m: any) => m.name) || [process.env.LLM_MODEL_NAME || 'llama3'];
-      res.json({ models, __debug: { source_url: usedUrl } });
-    } catch (error: any) {
-      console.error('LLM Proxy Error (Models):', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/ai", authenticateToken, async (req, res) => {
-    try {
-      const { prompt, selectedModel, ollamaUrl: customUrl } = req.body;
-      const model = selectedModel || process.env.LLM_MODEL_NAME || 'llama3';
-      
-      // Default URL if passed in ENV or via UI
-      let llmUrl = customUrl || process.env.LLM_API_URL || 'http://host.docker.internal:11434/api/generate';
-      const baseUrl = llmUrl.replace('/api/generate', '').replace('/api/tags', '');
-      const generationUrl = `${baseUrl}/api/generate`;
-
-      let response;
-      let usedUrl = generationUrl;
-
-      const fallbackUrls = customUrl 
-        ? [generationUrl]
-        : [
-            generationUrl,
-            'http://172.17.0.1:11434/api/generate',
-            'http://172.18.0.1:11434/api/generate',
-            'http://localhost:11434/api/generate'
-          ];
-
-      for (const url of fallbackUrls) {
-        try {
-          console.log(`[LLM Proxy] Testing connection to ${url} with model ${model}...`);
-          usedUrl = url;
-          response = await fetch(url, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({
-               model: model,
-               prompt: prompt,
-               stream: false 
-             }),
-             // 180s timeout - models can take time to load into VRAM or generate long responses
-             signal: AbortSignal.timeout(180000) 
-          });
-          
-          if (response.ok) {
-             console.log(`[LLM Proxy] Success using ${url}`);
-             break; 
-          } else {
-             const errorTxt = await response.text();
-             console.warn(`[Network Retry] Ollama error on ${url}: ${response.status} ${errorTxt}`);
-          }
-        } catch (e: any) {
-          response = null;
-        }
-      }
-
-      if (!response) {
-        throw new Error(`Impossible de contacter Ollama sur les adresses réseaux. Veuillez vérifier que le service est démarré.`);
-      }
-
-      if (!response.ok) {
-        const errorTxt = await response.text();
-        let detail;
-        try {
-          const jsonErr = JSON.parse(errorTxt);
-          detail = jsonErr.error || errorTxt;
-        } catch(e) {
-          detail = errorTxt;
-        }
-        throw new Error(`Ollama (HTTP ${response.status}) : ${detail}`);
-      }
-
-      const data = await response.json();
-      
-      // Robust payload parsing for Ollama (/api/generate) vs OpenAI compat (/v1/completions)
-      const text = data.response || data.choices?.[0]?.message?.content || data.choices?.[0]?.text || "No response received from model.";
-      
-      res.json({ text, __debug: { source_url: usedUrl } });
-    } catch (error: any) {
-      console.error('LLM Proxy Error:', error);
-      // Extraire la vraie cause (ex: EAI_AGAIN, ECONNREFUSED) pour le front-end
-      const errorDetail = error.cause ? `${error.message} (${error.cause.message})` : error.message;
-      res.status(500).json({ error: errorDetail });
-    }
-  });
-
   // Broker API Connection Test (OANDA focus)
   app.post("/api/broker/test", authenticateToken, async (req, res) => {
     try {
@@ -412,7 +306,7 @@ async function startServer() {
         }
       });
 
-      const result = await response.json();
+      const result = await safeJson(response);
 
       if (!response.ok) {
         throw new Error(result.errorMessage || "Échec de la connexion : Identifiants invalides.");
@@ -476,7 +370,7 @@ async function startServer() {
         }
       });
 
-      const result = await response.json();
+      const result = await safeJson(response);
 
       if (!response.ok) {
         // If fail, return fallback instead of erroring out UI
@@ -518,7 +412,7 @@ async function startServer() {
       const environment = process.env.BROKER_ENVIRONMENT || 'practice';
 
       if (!apiKey) {
-        return res.status(401).json({ error: "OANDA API Key non configurée." });
+        return res.status(400).json({ error: "OANDA API Key non configurée." });
       }
 
       // Sanitize symbol: OANDA expects "EUR_USD", not "EUR-USD" or "EURUSD=X"
@@ -544,11 +438,18 @@ async function startServer() {
         }
       });
 
-      const result = await response.json();
+      const result = await safeJson(response);
+
+      if (result.error && !response.ok) {
+        return res.status(response.status === 401 || response.status === 403 ? 400 : (response.status || 502)).json({ 
+          error: `OANDA a retourné une réponse invalide (${response.status})`,
+          instrument: instrument
+        });
+      }
 
       if (!response.ok) {
         console.error(`[OANDA API Error] ${instrument}:`, result.errorMessage || response.statusText);
-        return res.status(response.status).json({ 
+        return res.status(response.status === 401 || response.status === 403 ? 400 : response.status).json({ 
           error: result.errorMessage || `Erreur OANDA (${response.status})`,
           instrument: instrument
         });
@@ -617,7 +518,7 @@ async function startServer() {
         body: JSON.stringify(orderPayload)
       });
 
-      const result = await response.json();
+      const result = await safeJson(response);
 
       if (!response.ok) {
         throw new Error(result.errorMessage || "Erreur lors de l'envoi de l'ordre au broker OANDA");
